@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  CUSTOMER
+}
+
+enum RestaurantStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id           String  @id @default(uuid())
+  name         String
+  email        String  @unique
+  passwordHash String?
+  googleId     String? @unique
+  role         Role    @default(CUSTOMER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurants Restaurant[]
+  addresses   Address[]
+  orders      Order[]
+
+  @@map("users")
+}
+
+model Restaurant {
+  id          String           @id @default(uuid())
+  name        String
+  description String?
+  logo        String?
+  banner      String?
+  status      RestaurantStatus @default(PENDING)
+  ownerId     String
+
+  categories Category[]
+  orders     Order[]
+
+  owner User @relation(fields: [ownerId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@map("restaurants")
+}
+
+model Address {
+  id         String  @id @default(uuid())
+  street     String
+  number     String
+  district   String
+  city       String
+  state      String
+  zipCode    String
+  complement String?
+  userId     String
+
+  orders Order[]
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("addresses")
+}
+
+model Category {
+  id String @id @default(uuid())
+
+  name String
+
+  restaurantId String
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+
+  products Product[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@map("categories")
+}
+
+model Product {
+  id String @id @default(uuid())
+
+  name String
+
+  description String?
+
+  price Float
+
+  image String?
+
+  isAvailable Boolean @default(true)
+
+  categoryId String
+
+  category   Category    @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@map("products")
+}
+
+model Order {
+  id String @id @default(uuid())
+
+  customerId String
+  customer   User   @relation(fields: [customerId], references: [id])
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  addressId String
+  address   Address @relation(fields: [addressId], references: [id])
+
+  totalAmount Float
+
+  status OrderStatus @default(PENDING)
+
+  items OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id String @id @default(uuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  productName String
+
+  unitPrice Float
+
+  quantity Int
+
+  createdAt DateTime @default(now())
+
+  @@map("order_items")
+}
