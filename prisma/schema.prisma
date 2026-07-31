@@ -42,6 +42,7 @@ model User {
   restaurants Restaurant[]
   addresses   Address[]
   orders      Order[]
+  cart        Cart?
 
   @@map("users")
 }
@@ -57,6 +58,7 @@ model Restaurant {
 
   categories Category[]
   orders     Order[]
+  carts      Cart[]
 
   owner User @relation(fields: [ownerId], references: [id])
 
@@ -122,6 +124,7 @@ model Product {
 
   category   Category    @relation(fields: [categoryId], references: [id])
   orderItems OrderItem[]
+  cartItems  CartItem[]
 
   createdAt DateTime @default(now())
 
@@ -172,4 +175,38 @@ model OrderItem {
   createdAt DateTime @default(now())
 
   @@map("order_items")
+}
+
+model Cart {
+  id String @id @default(uuid())
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+
+  items CartItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("carts")
+}
+
+model CartItem {
+  id String @id @default(uuid())
+
+  cartId String
+  cart   Cart   @relation(fields: [cartId], references: [id])
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity Int @default(1)
+
+  createdAt DateTime @default(now())
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
 }
