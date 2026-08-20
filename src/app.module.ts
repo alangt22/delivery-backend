@@ -14,6 +14,7 @@ import { AddressesModule } from './modules/addresses/addresses.module';
 
 import { PrismaModule } from './prisma/prisma.module';
 import { CartModule } from './modules/cart/cart.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { CartModule } from './modules/cart/cart.module';
     OrdersModule,
     AddressesModule,
     CartModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

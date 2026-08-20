@@ -1,21 +1,11 @@
 import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { OrdersService } from './order.service';
-import { CreateOrderDto } from './dto/create-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateOrderStatusDto } from './dto/update-order.dto';
 
 @Controller('orders')
 export class OrdersController {
-  constructor(private ordersService: OrdersService) {}
-
-  @Post()
-  @UseGuards(JwtAuthGuard)
-  async create(
-    @Body() dto: CreateOrderDto, 
-    @Req() req
-  ) {
-    return this.ordersService.create(dto, req.user.id);
-  }
+  constructor(private ordersService: OrdersService) { }
 
   @Get()
   @UseGuards(JwtAuthGuard)
@@ -24,6 +14,19 @@ export class OrdersController {
   ) {
     return this.ordersService.findMyOrders(req.user.id);
   }
+
+  @Get('restaurants/:restaurantId')
+  @UseGuards(JwtAuthGuard)
+  async findMyRestaurantOrders(
+    @Param('restaurantId') restaurantId: string,
+    @Req() req,
+  ) {
+    return this.ordersService.findMyRestaurantOrders(
+      restaurantId,
+      req.user.id,
+    );
+  }
+
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
@@ -34,8 +37,10 @@ export class OrdersController {
     return this.ordersService.findMyOrderById(id, req.user.id);
   }
 
+
+
   @Patch('restaurants/:restaurantId/orders/:orderId/status')
-  @UseGuards(JwtAuthGuard) 
+  @UseGuards(JwtAuthGuard)
   updateStatus(
     @Param('restaurantId') restaurantId: string,
     @Param('orderId') orderId: string,

@@ -1,12 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ProductsService } from '../products/products.service';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Cart } from '@prisma/client';
+import { AddressesService } from '../addresses/address.service';
+import { Cart, OrderStatus } from '@prisma/client';
 @Injectable()
 export class CartService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly productsService: ProductsService,
+    private readonly addressesService: AddressesService
   ) { }
 
 
@@ -56,12 +58,13 @@ export class CartService {
     });
   }
 
-  private async createCartItem(cartId: string, productId: string, quantity: number) {
+  private async createCartItem(cartId: string, productId: string, quantity: number, unitPrice: number) {
     return this.prisma.cartItem.create({
       data: {
         cartId,
         productId,
         quantity,
+        unitPrice,
       },
     });
   }
@@ -96,21 +99,24 @@ export class CartService {
     }
 
     const items = cart.items.map((item) => {
-      const subtotal = item.product.price * item.quantity;
+      const subtotal = item.unitPrice * item.quantity;
+      const priceChanged = item.unitPrice !== item.product.price;
 
       return {
         productId: item.productId,
         productName: item.product.name,
         quantity: item.quantity,
-        unitPrice: item.product.price,
+        unitPrice: item.unitPrice,
         subtotal: Number(subtotal.toFixed(2)),
+        currentPrice: item.product.price,
+        priceChanged,
       }
     });
 
     const totalAmount = Number(
       cart.items
         .reduce((total, item) => {
-          return total + item.product.price * item.quantity;
+          return total + item.unitPrice * item.quantity;
         }, 0).toFixed(2),
     )
 
@@ -142,7 +148,7 @@ export class CartService {
       const newQuantity = cartItem.quantity + quantity;
       await this.updateCartItemQuantity(cartItem.id, newQuantity);
     } else {
-      await this.createCartItem(cart.id, product.id, quantity);
+      await this.createCartItem(cart.id, product.id, quantity, product.price);
     }
 
     return this.findCartDetails(cart.id);
@@ -213,5 +219,179 @@ export class CartService {
     });
 
     return this.findCartDetails(cart.id);
+  }
+
+
+  async checkout(userId: string, addressId: string, acceptPriceChanges: boolean) {
+    const cart = await this.prisma.cart.findUnique({
+      where: {
+        userId,
+      },
+      include: {
+        items: true
+      }
+    });
+
+    if (!cart) {
+      throw new NotFoundException('Carrinho não encontrado.');
+    }
+
+    if (cart.items.length === 0) {
+      throw new BadRequestException('O carrinho está vazio.');
+    }
+
+    const address = await this.addressesService.findById(addressId, userId);
+
+    const productIds = cart.items.map((item) => item.productId);
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        id: {
+          in: productIds,
+        },
+      },
+      include: {
+        category: {
+          include: {
+            restaurant: true,
+          },
+        },
+      },
+    });
+
+    if (products.length !== cart.items.length) {
+      throw new NotFoundException(
+        'Algum produto do carrinho não foi encontrado.',
+      );
+    }
+
+    if (products.some((product) => !product.isAvailable)) {
+      throw new BadRequestException(
+        'Algum produto do carrinho não está mais disponível.',
+      );
+    }
+
+    if (
+      products.some(
+        (product) => product.category.restaurant.id !== cart.restaurantId,
+      )
+    ) {
+      throw new BadRequestException(
+        'Algum produto não pertence ao restaurante do carrinho.',
+      );
+    }
+
+    const priceChanges = cart.items
+      .map((item) => {
+        const product = products.find(
+          (product) => product.id === item.productId,
+        );
+
+        if (!product) {
+          return null;
+        }
+
+        if (item.unitPrice !== product.price) {
+          return {
+            productId: product.id,
+            productName: product.name,
+            oldPrice: item.unitPrice,
+            newPrice: product.price,
+          };
+        }
+
+        return null;
+      })
+      .filter((item) => item !== null);
+
+    if (priceChanges.length > 0 && !acceptPriceChanges) {
+      throw new ConflictException({
+        message: 'Alguns produtos tiveram alteração de preço.',
+        code: 'PRICE_CHANGED',
+        items: priceChanges,
+      });
+    }
+
+    const productsMap = new Map(products.map((product) => [product.id, product]));
+
+    const orderItemsData = cart.items.map((item) => {
+      // encontrar product usando productsMap
+      const product = productsMap.get(item.productId);
+
+      if (!product) {
+        throw new NotFoundException(
+          `Produto não encontrado.`,
+        );
+      }
+      // descobrir unitPrice
+      const unitPrice = item.unitPrice !== product.price ? product.price : item.unitPrice;
+      // subtoal
+      const subtotal = unitPrice * item.quantity;
+      // retornar os dados
+      return {
+        productId: item.productId,
+        productName: product.name,
+        quantity: item.quantity,
+        unitPrice,
+        subtotal,
+      };
+    });
+
+    const totalAmount = orderItemsData.reduce(
+      (total, item) => total + item.subtotal,
+      0,
+    );
+
+    const order = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          customerId: userId,
+          restaurantId: cart.restaurantId,
+
+          addressId: address.id,
+          addressStreet: address.street,
+          addressNumber: address.number,
+          addressDistrict: address.district,
+          addressCity: address.city,
+          addressState: address.state,
+          addressZipCode: address.zipCode,
+          addressComplement: address.complement,
+
+          totalAmount,
+          status: OrderStatus.PENDING,
+        },
+      });
+
+      await tx.orderItem.createMany({
+        data: orderItemsData.map((item) => ({
+          orderId: order.id,
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+        })),
+      });
+      
+
+      await tx.cartItem.deleteMany({
+        where: {
+          cartId: cart.id,
+        },
+      });
+
+      return order;
+    });
+
+
+    return this.prisma.order.findUnique({
+      where: {
+        id: order.id,
+      },
+      include: {
+        items: true,
+        restaurant: true,
+        address: true
+      },
+    });
   }
 }

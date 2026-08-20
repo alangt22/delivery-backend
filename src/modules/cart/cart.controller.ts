@@ -3,6 +3,7 @@ import { CartService } from './cart.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AddCartDto } from './dto/add-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
+import { CheckoutCartDto } from './dto/checkout-cart.dto';
 
 @Controller('cart')
 export class CartController {
@@ -53,6 +54,21 @@ export class CartController {
         return this.cartService.removeCartItem(
             req.user.id,
             itemId,
+        );
+    }
+
+
+
+    @Post('/checkout')
+    @UseGuards(JwtAuthGuard)
+    async checkout(
+        @Req() req,
+        @Body() dto: CheckoutCartDto,
+    ) {
+        return this.cartService.checkout(
+            req.user.id,
+            dto.addressId,
+            dto.acceptPriceChanges
         );
     }
 }

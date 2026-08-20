@@ -2,17 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersService } from './order.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { RestaurantsService } from '../restaurants/restaurants.service';
-import { AddressesService } from '../addresses/address.service';
 import { OrderStatus } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common/exceptions/bad-request.exception';
 import { NotFoundException } from '@nestjs/common/exceptions/not-found.exception';
 
 describe('OrdersService', () => {
   let service: OrdersService;
-
   let prismaMock;
   let restaurantServiceMock;
-  let addressServiceMock;
+
 
   beforeEach(async () => {
     prismaMock = {
@@ -26,7 +24,7 @@ describe('OrdersService', () => {
       findById: jest.fn(),
     };
 
-    addressServiceMock = {};
+   
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -38,10 +36,6 @@ describe('OrdersService', () => {
         {
           provide: RestaurantsService,
           useValue: restaurantServiceMock,
-        },
-        {
-          provide: AddressesService,
-          useValue: addressServiceMock,
         },
       ],
     }).compile();
