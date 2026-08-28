@@ -11,7 +11,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { ProductsModule } from './modules/products/products.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
-
+import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { CartModule } from './modules/cart/cart.module';
 import { PaymentsModule } from './modules/payments/payments.module';
@@ -33,6 +33,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     AddressesModule,
     CartModule,
     PaymentsModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

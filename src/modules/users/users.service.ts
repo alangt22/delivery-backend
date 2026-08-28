@@ -7,9 +7,4 @@ export class UsersService {
   constructor(
     private prisma: PrismaService
   ){}
-
-  async test(){
-    return this.prisma.user.findMany()
-  }
-
 }

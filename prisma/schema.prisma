@@ -117,6 +117,7 @@ model Product {
   price Float
 
   image String?
+  imagePublicId String?
 
   isAvailable Boolean @default(true)
 

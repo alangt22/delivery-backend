@@ -94,7 +94,7 @@ export class AuthService {
           googleId: profile.id,
         },
       });
-      console.log('New user created:', user);
+      
     } else if (!user.googleId) {
       user = await this.prisma.user.update({
         where: {
@@ -105,7 +105,7 @@ export class AuthService {
           googleId: profile.id,
         },
       });
-      console.log('User updated with Google ID:', user);
+      
     }
 
     const payload = {
@@ -119,7 +119,7 @@ export class AuthService {
     const access_token = await this.jwtService.signAsync(payload);
 
     const { passwordHash, ...userWithoutPassword } = user;
-    console.log('Token gerado:', access_token);
+   
 
     return {
       user: userWithoutPassword,

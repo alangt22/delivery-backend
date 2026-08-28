@@ -3,9 +3,11 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateCategoryDto {
 
+  @ApiProperty()
   @IsString()
   @MinLength(2)
   @MaxLength(100)
