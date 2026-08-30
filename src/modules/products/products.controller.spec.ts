@@ -227,6 +227,7 @@ describe('ProductsController', () => {
       restaurantId,
       req,
       dto,
+      undefined,
     );
 
     expect(productsServiceMock.update).toHaveBeenCalledWith(
@@ -235,6 +236,57 @@ describe('ProductsController', () => {
       restaurantId,
       userId,
       dto,
+      undefined,
+    );
+
+    expect(response).toEqual(updatedProduct);
+  });
+
+  it('deve atualizar um produto enviando uma nova imagem para o service', async () => {
+    const dto = {
+      name: 'Pizza Grande',
+      price: 40,
+    };
+
+    const file = {
+      buffer: Buffer.from('new-image'),
+      originalname: 'pizza-nova.jpg',
+      mimetype: 'image/jpeg',
+    } as Express.Multer.File;
+
+    const updatedProduct = {
+      id: productId,
+      name: 'Pizza Grande',
+      price: 40,
+      categoryId,
+      image: 'https://cloudinary.com/new-pizza.jpg',
+      imagePublicId: 'restaurants/restaurant-1/products/new-pizza',
+    };
+
+    productsServiceMock.update.mockResolvedValue(updatedProduct);
+
+    const req = {
+      user: {
+        id: userId,
+      },
+    };
+
+    const response = await controller.update(
+      productId,
+      categoryId,
+      restaurantId,
+      req,
+      dto,
+      file,
+    );
+
+    expect(productsServiceMock.update).toHaveBeenCalledWith(
+      productId,
+      categoryId,
+      restaurantId,
+      userId,
+      dto,
+      file,
     );
 
     expect(response).toEqual(updatedProduct);

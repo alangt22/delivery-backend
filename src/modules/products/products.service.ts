@@ -82,25 +82,72 @@ export class ProductsService {
     return product;
   }
 
-  async update(productId: string, categoryId: string, restaurantId: string, ownerId: string, dto: UpdateProductDto) {
-    await this.findById(productId, categoryId, restaurantId, ownerId);
+  async update(productId: string, categoryId: string, restaurantId: string, ownerId: string, dto: UpdateProductDto, file?: Express.Multer.File,) {
+    const product = await this.findById(
+      productId,
+      categoryId,
+      restaurantId,
+      ownerId,
+    );
 
-    return this.prisma.product.update({
+    let image: string | undefined = product.image ?? undefined;
+    let imagePublicId: string | undefined =
+      product.imagePublicId ?? undefined;
+
+    let oldImagePublicId: string | undefined;
+
+    if (file) {
+      const uploadedImage = await this.cloudinaryService.uploadImage(
+        file,
+        `restaurants/${restaurantId}/products`,
+      );
+
+      oldImagePublicId = product.imagePublicId ?? undefined;
+
+      image = uploadedImage.url;
+      imagePublicId = uploadedImage.publicId;
+    }
+
+    const updatedProduct = await this.prisma.product.update({
       where: {
         id: productId,
       },
-      data: dto,
+      data: {
+        ...dto,
+        image,
+        imagePublicId,
+      },
     });
+
+    if (file && oldImagePublicId) {
+      await this.cloudinaryService.deleteImage(oldImagePublicId);
+    }
+
+    return updatedProduct;
   }
 
-  async remove(productId: string, categoryId: string, restaurantId: string, ownerId: string) {
-    await this.findById(productId, categoryId, restaurantId, ownerId);
+  async remove(
+    productId: string,
+    categoryId: string,
+    restaurantId: string,
+    ownerId: string,
+  ) {
+    const product = await this.findById(
+      productId,
+      categoryId,
+      restaurantId,
+      ownerId,
+    );
 
     await this.prisma.product.delete({
       where: {
         id: productId,
       },
     });
+
+    if (product.imagePublicId) {
+      await this.cloudinaryService.deleteImage(product.imagePublicId);
+    }
 
     return {
       message: 'Produto removido com sucesso',

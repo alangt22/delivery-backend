@@ -105,12 +105,38 @@ export class ProductsController {
 
   @Patch(':productId')
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          example: 'Hambúrguer Clássico',
+        },
+        description: {
+          type: 'string',
+          example: 'Hambúrguer com queijo e molho especial',
+        },
+        price: {
+          type: 'number',
+          example: 29.9,
+        },
+        image: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
   update(
     @Param('productId') productId: string,
     @Param('categoryId') categoryId: string,
     @Param('restaurantId') restaurantId: string,
     @Req() req,
     @Body() dto: UpdateProductDto,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.productsService.update(
       productId,
@@ -118,6 +144,7 @@ export class ProductsController {
       restaurantId,
       req.user.id,
       dto,
+      file,
     );
   }
 

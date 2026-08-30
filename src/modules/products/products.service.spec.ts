@@ -382,7 +382,11 @@ describe('ProductsService', () => {
       where: {
         id: 'product-1',
       },
-      data: dto,
+      data: {
+        ...dto,
+        image: undefined,
+        imagePublicId: undefined,
+      },
     });
 
     expect(result).toEqual(updatedProduct);
@@ -421,6 +425,278 @@ describe('ProductsService', () => {
     expect(result).toEqual({
       message: 'Produto removido com sucesso',
     });
+  });
+
+  it('deve remover a imagem do Cloudinary ao remover um produto', async () => {
+    categoriesServiceMock.findById.mockResolvedValue({
+      id: categoryId,
+      restaurantId,
+    });
+
+    prismaMock.product.findFirst.mockResolvedValue({
+      id: 'product-1',
+      categoryId,
+      name: 'Pizza',
+      price: 30,
+      image: 'https://cloudinary.com/pizza.jpg',
+      imagePublicId: 'restaurants/restaurant-1/products/pizza',
+    });
+
+    prismaMock.product.delete.mockResolvedValue({
+      id: 'product-1',
+    });
+
+    const result = await service.remove(
+      'product-1',
+      categoryId,
+      restaurantId,
+      ownerId,
+    );
+
+    expect(prismaMock.product.delete).toHaveBeenCalledWith({
+      where: {
+        id: 'product-1',
+      },
+    });
+
+    expect(cloudinaryServiceMock.deleteImage).toHaveBeenCalledWith(
+      'restaurants/restaurant-1/products/pizza',
+    );
+
+    expect(result).toEqual({
+      message: 'Produto removido com sucesso',
+    });
+  });
+
+  it('deve remover um produto sem tentar remover imagem do Cloudinary', async () => {
+    categoriesServiceMock.findById.mockResolvedValue({
+      id: categoryId,
+      restaurantId,
+    });
+
+    prismaMock.product.findFirst.mockResolvedValue({
+      id: 'product-1',
+      categoryId,
+      name: 'Pizza',
+      price: 30,
+      image: null,
+      imagePublicId: null,
+    });
+
+    prismaMock.product.delete.mockResolvedValue({
+      id: 'product-1',
+    });
+
+    const result = await service.remove(
+      'product-1',
+      categoryId,
+      restaurantId,
+      ownerId,
+    );
+
+    expect(prismaMock.product.delete).toHaveBeenCalledWith({
+      where: {
+        id: 'product-1',
+      },
+    });
+
+    expect(cloudinaryServiceMock.deleteImage).not.toHaveBeenCalled();
+
+    expect(result).toEqual({
+      message: 'Produto removido com sucesso',
+    });
+  });
+
+  it('deve atualizar um produto com uma nova imagem', async () => {
+    const dto = {
+      name: 'Pizza Grande',
+      price: 40,
+    };
+
+    const file = {
+      buffer: Buffer.from('new-image'),
+      originalname: 'pizza-nova.jpg',
+      mimetype: 'image/jpeg',
+    } as Express.Multer.File;
+
+    categoriesServiceMock.findById.mockResolvedValue({
+      id: categoryId,
+      restaurantId,
+    });
+
+    prismaMock.product.findFirst.mockResolvedValue({
+      id: 'product-1',
+      categoryId,
+      name: 'Pizza',
+      price: 30,
+      image: 'https://cloudinary.com/old-pizza.jpg',
+      imagePublicId: 'restaurants/restaurant-1/products/old-pizza',
+    });
+
+    cloudinaryServiceMock.uploadImage.mockResolvedValue({
+      url: 'https://cloudinary.com/new-pizza.jpg',
+      publicId: 'restaurants/restaurant-1/products/new-pizza',
+    });
+
+    const updatedProduct = {
+      id: 'product-1',
+      categoryId,
+      name: 'Pizza Grande',
+      price: 40,
+      image: 'https://cloudinary.com/new-pizza.jpg',
+      imagePublicId: 'restaurants/restaurant-1/products/new-pizza',
+    };
+
+    prismaMock.product.update.mockResolvedValue(updatedProduct);
+
+    const result = await service.update(
+      'product-1',
+      categoryId,
+      restaurantId,
+      ownerId,
+      dto,
+      file,
+    );
+
+    expect(cloudinaryServiceMock.uploadImage).toHaveBeenCalledWith(
+      file,
+      `restaurants/${restaurantId}/products`,
+    );
+
+    expect(prismaMock.product.update).toHaveBeenCalledWith({
+      where: {
+        id: 'product-1',
+      },
+      data: {
+        ...dto,
+        image: 'https://cloudinary.com/new-pizza.jpg',
+        imagePublicId: 'restaurants/restaurant-1/products/new-pizza',
+      },
+    });
+
+    expect(cloudinaryServiceMock.deleteImage).toHaveBeenCalledWith(
+      'restaurants/restaurant-1/products/old-pizza',
+    );
+
+    expect(result).toEqual(updatedProduct);
+  });
+
+  it('deve atualizar com nova imagem sem tentar remover uma imagem antiga inexistente', async () => {
+    const dto = {
+      name: 'Pizza Grande',
+      price: 40,
+    };
+
+    const file = {
+      buffer: Buffer.from('new-image'),
+      originalname: 'pizza-nova.jpg',
+      mimetype: 'image/jpeg',
+    } as Express.Multer.File;
+
+    categoriesServiceMock.findById.mockResolvedValue({
+      id: categoryId,
+      restaurantId,
+    });
+
+    prismaMock.product.findFirst.mockResolvedValue({
+      id: 'product-1',
+      categoryId,
+      name: 'Pizza',
+      price: 30,
+      image: null,
+      imagePublicId: null,
+    });
+
+    cloudinaryServiceMock.uploadImage.mockResolvedValue({
+      url: 'https://cloudinary.com/new-pizza.jpg',
+      publicId: 'restaurants/restaurant-1/products/new-pizza',
+    });
+
+    const updatedProduct = {
+      id: 'product-1',
+      categoryId,
+      name: 'Pizza Grande',
+      price: 40,
+      image: 'https://cloudinary.com/new-pizza.jpg',
+      imagePublicId: 'restaurants/restaurant-1/products/new-pizza',
+    };
+
+    prismaMock.product.update.mockResolvedValue(updatedProduct);
+
+    const result = await service.update(
+      'product-1',
+      categoryId,
+      restaurantId,
+      ownerId,
+      dto,
+      file,
+    );
+
+    expect(cloudinaryServiceMock.uploadImage).toHaveBeenCalledWith(
+      file,
+      `restaurants/${restaurantId}/products`,
+    );
+
+    expect(prismaMock.product.update).toHaveBeenCalledWith({
+      where: {
+        id: 'product-1',
+      },
+      data: {
+        ...dto,
+        image: 'https://cloudinary.com/new-pizza.jpg',
+        imagePublicId: 'restaurants/restaurant-1/products/new-pizza',
+      },
+    });
+
+    expect(cloudinaryServiceMock.deleteImage).not.toHaveBeenCalled();
+
+    expect(result).toEqual(updatedProduct);
+  });
+
+  it('deve interromper a atualização quando o upload da nova imagem falhar', async () => {
+    const dto = {
+      name: 'Pizza Grande',
+      price: 40,
+    };
+
+    const file = {
+      buffer: Buffer.from('new-image'),
+      originalname: 'pizza-nova.jpg',
+      mimetype: 'image/jpeg',
+    } as Express.Multer.File;
+
+    categoriesServiceMock.findById.mockResolvedValue({
+      id: categoryId,
+      restaurantId,
+    });
+
+    prismaMock.product.findFirst.mockResolvedValue({
+      id: 'product-1',
+      categoryId,
+      name: 'Pizza',
+      price: 30,
+      image: 'https://cloudinary.com/old-pizza.jpg',
+      imagePublicId: 'restaurants/restaurant-1/products/old-pizza',
+    });
+
+    cloudinaryServiceMock.uploadImage.mockRejectedValue(
+      new Error('Erro no Cloudinary'),
+    );
+
+    await expect(
+      service.update(
+        'product-1',
+        categoryId,
+        restaurantId,
+        ownerId,
+        dto,
+        file,
+      ),
+    ).rejects.toThrow('Erro no Cloudinary');
+
+    expect(prismaMock.product.update).not.toHaveBeenCalled();
+
+    expect(cloudinaryServiceMock.deleteImage).not.toHaveBeenCalled();
   });
 
   it('deve lançar NotFoundException ao remover produto inexistente', async () => {
