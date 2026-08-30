@@ -51,8 +51,10 @@ model Restaurant {
   id          String           @id @default(uuid())
   name        String
   description String?
-  logo        String?
-  banner      String?
+  logo          String?
+  logoPublicId  String?
+  banner        String?
+  bannerPublicId String?
   status      RestaurantStatus @default(PENDING)
   ownerId     String
 

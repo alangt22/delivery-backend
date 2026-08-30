@@ -2,9 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 @Injectable()
 export class RestaurantsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cloudinaryService: CloudinaryService
+  ) { }
 
   async create(dto: CreateRestaurantDto, ownerId: string) {
     const restaurant = await this.prisma.restaurant.create({
@@ -44,26 +48,95 @@ export class RestaurantsService {
     return restaurant;
   }
 
-  async update(id: string, ownerId: string, dto: UpdateRestaurantDto) {
-    await this.findById(id, ownerId);
-    return this.prisma.restaurant.update({
+  async update(
+    id: string,
+    ownerId: string,
+    dto: UpdateRestaurantDto,
+    logo?: Express.Multer.File,
+    banner?: Express.Multer.File,
+  ) {
+    const restaurant = await this.findById(id, ownerId);
+
+    let logoUrl = restaurant.logo ?? undefined;
+    let logoPublicId = restaurant.logoPublicId ?? undefined;
+
+    let bannerUrl = restaurant.banner ?? undefined;
+    let bannerPublicId = restaurant.bannerPublicId ?? undefined;
+
+    let oldLogoPublicId: string | undefined;
+    let oldBannerPublicId: string | undefined;
+
+    if (logo) {
+      const uploadedLogo = await this.cloudinaryService.uploadImage(
+        logo,
+        `restaurants/${id}/logo`,
+      );
+
+      oldLogoPublicId = restaurant.logoPublicId ?? undefined;
+
+      logoUrl = uploadedLogo.url;
+      logoPublicId = uploadedLogo.publicId;
+    }
+
+    if (banner) {
+      const uploadedBanner = await this.cloudinaryService.uploadImage(
+        banner,
+        `restaurants/${id}/banner`,
+      );
+
+      oldBannerPublicId = restaurant.bannerPublicId ?? undefined;
+
+      bannerUrl = uploadedBanner.url;
+      bannerPublicId = uploadedBanner.publicId;
+    }
+
+    const updatedRestaurant = await this.prisma.restaurant.update({
       where: {
         id,
       },
-      data: dto
+      data: {
+        ...dto,
+        logo: logoUrl,
+        logoPublicId,
+        banner: bannerUrl,
+        bannerPublicId,
+      },
     });
+
+    if (logo && oldLogoPublicId) {
+      await this.cloudinaryService.deleteImage(oldLogoPublicId);
+    }
+
+    if (banner && oldBannerPublicId) {
+      await this.cloudinaryService.deleteImage(oldBannerPublicId);
+    }
+
+    return updatedRestaurant;
   }
 
   async remove(id: string, ownerId: string) {
-    await this.findById(id, ownerId);
+    const restaurant = await this.findById(id, ownerId);
+
     await this.prisma.restaurant.delete({
       where: {
         id,
       },
     });
 
+    if (restaurant.logoPublicId) {
+      await this.cloudinaryService.deleteImage(
+        restaurant.logoPublicId,
+      );
+    }
+
+    if (restaurant.bannerPublicId) {
+      await this.cloudinaryService.deleteImage(
+        restaurant.bannerPublicId,
+      );
+    }
+
     return {
       message: 'Restaurante removido com sucesso',
-    }
+    };
   }
 }

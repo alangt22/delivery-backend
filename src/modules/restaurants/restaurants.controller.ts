@@ -8,7 +8,16 @@ import {
   UseGuards,
   Patch,
   Delete,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
+
+import {
+  ApiBody,
+  ApiConsumes,
+} from '@nestjs/swagger';
+
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RestaurantsService } from './restaurants.service';
@@ -21,7 +30,7 @@ import { OrdersService } from '../orders/order.service';
 export class RestaurantsController {
   constructor(
     private readonly restaurantsService: RestaurantsService,
-  ) {}
+  ) { }
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -43,12 +52,53 @@ export class RestaurantsController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'logo', maxCount: 1 },
+      { name: 'banner', maxCount: 1 },
+    ]),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          example: 'Alan Burger',
+        },
+        description: {
+          type: 'string',
+          example: 'Hambúrguer artesanal',
+        },
+        logo: {
+          type: 'string',
+          format: 'binary',
+        },
+        banner: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
   update(
     @Param('id') id: string,
     @Req() req,
     @Body() dto: UpdateRestaurantDto,
+    @UploadedFiles()
+    files: {
+      logo?: Express.Multer.File[];
+      banner?: Express.Multer.File[];
+    },
   ) {
-    return this.restaurantsService.update(id, req.user.id, dto);
+    return this.restaurantsService.update(
+      id,
+      req.user.id,
+      dto,
+      files?.logo?.[0],
+      files?.banner?.[0],
+    );
   }
 
   @Delete(':id')

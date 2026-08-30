@@ -3,11 +3,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { RestaurantsService } from 'src/modules/restaurants/restaurants.service';
 
 import { PrismaService } from 'src/prisma/prisma.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 
 describe('RestaurantsService', () => {
   let service: RestaurantsService;
   let prismaMock: any;
+  let cloudinaryServiceMock: any;
+
 
   const ownerId = 'owner-1';
   const restaurantId = 'restaurant-1';
@@ -25,12 +28,21 @@ describe('RestaurantsService', () => {
       },
     };
 
+    cloudinaryServiceMock = {
+      uploadImage: jest.fn(),
+      deleteImage: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RestaurantsService,
         {
           provide: PrismaService,
           useValue: prismaMock,
+        },
+        {
+          provide: CloudinaryService,
+          useValue: cloudinaryServiceMock,
         },
       ],
     }).compile();
@@ -190,6 +202,306 @@ describe('RestaurantsService', () => {
     expect(result).toEqual(updatedRestaurant);
   });
 
+  it('deve atualizar um restaurante com uma nova logo', async () => {
+    const dto = {
+      name: 'Alan Burger',
+    };
+
+    const logo = {
+      buffer: Buffer.from('new-logo'),
+      originalname: 'logo.png',
+      mimetype: 'image/png',
+    } as Express.Multer.File;
+
+    const existingRestaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      description: 'Hambúrguer artesanal',
+      ownerId,
+      logo: 'https://cloudinary.com/old-logo.png',
+      logoPublicId: 'restaurants/restaurant-1/logo/old-logo',
+      banner: null,
+      bannerPublicId: null,
+    };
+
+    const uploadedLogo = {
+      url: 'https://cloudinary.com/new-logo.png',
+      publicId: 'restaurants/restaurant-1/logo/new-logo',
+    };
+
+    const updatedRestaurant = {
+      ...existingRestaurant,
+      ...dto,
+      logo: uploadedLogo.url,
+      logoPublicId: uploadedLogo.publicId,
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(
+      existingRestaurant,
+    );
+
+    cloudinaryServiceMock.uploadImage.mockResolvedValue(uploadedLogo);
+
+    prismaMock.restaurant.update.mockResolvedValue(
+      updatedRestaurant,
+    );
+
+    const result = await service.update(
+      restaurantId,
+      ownerId,
+      dto,
+      logo,
+    );
+
+    expect(cloudinaryServiceMock.uploadImage).toHaveBeenCalledWith(
+      logo,
+      `restaurants/${restaurantId}/logo`,
+    );
+
+    expect(prismaMock.restaurant.update).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+      },
+      data: {
+        ...dto,
+        logo: uploadedLogo.url,
+        logoPublicId: uploadedLogo.publicId,
+        banner: undefined,
+        bannerPublicId: undefined,
+      },
+    });
+
+    expect(cloudinaryServiceMock.deleteImage).toHaveBeenCalledWith(
+      existingRestaurant.logoPublicId,
+    );
+
+    expect(result).toEqual(updatedRestaurant);
+  });
+
+  it('deve atualizar um restaurante com um novo banner', async () => {
+    const dto = {
+      description: 'Novo cardápio',
+    };
+
+    const banner = {
+      buffer: Buffer.from('new-banner'),
+      originalname: 'banner.jpg',
+      mimetype: 'image/jpeg',
+    } as Express.Multer.File;
+
+    const existingRestaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      description: 'Hambúrguer artesanal',
+      ownerId,
+      logo: null,
+      logoPublicId: null,
+      banner: 'https://cloudinary.com/old-banner.jpg',
+      bannerPublicId: 'restaurants/restaurant-1/banner/old-banner',
+    };
+
+    const uploadedBanner = {
+      url: 'https://cloudinary.com/new-banner.jpg',
+      publicId: 'restaurants/restaurant-1/banner/new-banner',
+    };
+
+    const updatedRestaurant = {
+      ...existingRestaurant,
+      ...dto,
+      banner: uploadedBanner.url,
+      bannerPublicId: uploadedBanner.publicId,
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(
+      existingRestaurant,
+    );
+
+    cloudinaryServiceMock.uploadImage.mockResolvedValue(
+      uploadedBanner,
+    );
+
+    prismaMock.restaurant.update.mockResolvedValue(
+      updatedRestaurant,
+    );
+
+    const result = await service.update(
+      restaurantId,
+      ownerId,
+      dto,
+      undefined,
+      banner,
+    );
+
+    expect(cloudinaryServiceMock.uploadImage).toHaveBeenCalledWith(
+      banner,
+      `restaurants/${restaurantId}/banner`,
+    );
+
+    expect(prismaMock.restaurant.update).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+      },
+      data: {
+        ...dto,
+        logo: undefined,
+        logoPublicId: undefined,
+        banner: uploadedBanner.url,
+        bannerPublicId: uploadedBanner.publicId,
+      },
+    });
+
+    expect(cloudinaryServiceMock.deleteImage).toHaveBeenCalledWith(
+      existingRestaurant.bannerPublicId,
+    );
+
+    expect(result).toEqual(updatedRestaurant);
+  });
+
+  it('deve atualizar um restaurante com nova logo e novo banner', async () => {
+    const dto = {
+      name: 'Alan Burger Atualizado',
+    };
+
+    const logo = {
+      buffer: Buffer.from('new-logo'),
+      originalname: 'logo.png',
+      mimetype: 'image/png',
+    } as Express.Multer.File;
+
+    const banner = {
+      buffer: Buffer.from('new-banner'),
+      originalname: 'banner.jpg',
+      mimetype: 'image/jpeg',
+    } as Express.Multer.File;
+
+    const existingRestaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      description: 'Hambúrguer artesanal',
+      ownerId,
+      logo: 'https://cloudinary.com/old-logo.png',
+      logoPublicId: 'restaurants/restaurant-1/logo/old-logo',
+      banner: 'https://cloudinary.com/old-banner.jpg',
+      bannerPublicId: 'restaurants/restaurant-1/banner/old-banner',
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(
+      existingRestaurant,
+    );
+
+    cloudinaryServiceMock.uploadImage
+      .mockResolvedValueOnce({
+        url: 'https://cloudinary.com/new-logo.png',
+        publicId: 'restaurants/restaurant-1/logo/new-logo',
+      })
+      .mockResolvedValueOnce({
+        url: 'https://cloudinary.com/new-banner.jpg',
+        publicId: 'restaurants/restaurant-1/banner/new-banner',
+      });
+
+    const updatedRestaurant = {
+      ...existingRestaurant,
+      ...dto,
+      logo: 'https://cloudinary.com/new-logo.png',
+      logoPublicId: 'restaurants/restaurant-1/logo/new-logo',
+      banner: 'https://cloudinary.com/new-banner.jpg',
+      bannerPublicId: 'restaurants/restaurant-1/banner/new-banner',
+    };
+
+    prismaMock.restaurant.update.mockResolvedValue(
+      updatedRestaurant,
+    );
+
+    const result = await service.update(
+      restaurantId,
+      ownerId,
+      dto,
+      logo,
+      banner,
+    );
+
+    expect(cloudinaryServiceMock.uploadImage).toHaveBeenNthCalledWith(
+      1,
+      logo,
+      `restaurants/${restaurantId}/logo`,
+    );
+
+    expect(cloudinaryServiceMock.uploadImage).toHaveBeenNthCalledWith(
+      2,
+      banner,
+      `restaurants/${restaurantId}/banner`,
+    );
+
+    expect(prismaMock.restaurant.update).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+      },
+      data: {
+        ...dto,
+        logo: 'https://cloudinary.com/new-logo.png',
+        logoPublicId: 'restaurants/restaurant-1/logo/new-logo',
+        banner: 'https://cloudinary.com/new-banner.jpg',
+        bannerPublicId: 'restaurants/restaurant-1/banner/new-banner',
+      },
+    });
+
+    expect(cloudinaryServiceMock.deleteImage).toHaveBeenNthCalledWith(
+      1,
+      'restaurants/restaurant-1/logo/old-logo',
+    );
+
+    expect(cloudinaryServiceMock.deleteImage).toHaveBeenNthCalledWith(
+      2,
+      'restaurants/restaurant-1/banner/old-banner',
+    );
+
+    expect(result).toEqual(updatedRestaurant);
+  });
+
+  it('deve interromper a atualização quando o upload da imagem falhar', async () => {
+    const dto = {
+      name: 'Alan Burger Atualizado',
+    };
+
+    const logo = {
+      buffer: Buffer.from('new-logo'),
+      originalname: 'logo.png',
+      mimetype: 'image/png',
+    } as Express.Multer.File;
+
+    const existingRestaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      description: 'Hambúrguer artesanal',
+      ownerId,
+      logo: 'https://cloudinary.com/old-logo.png',
+      logoPublicId: 'restaurants/restaurant-1/logo/old-logo',
+      banner: null,
+      bannerPublicId: null,
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(
+      existingRestaurant,
+    );
+
+    cloudinaryServiceMock.uploadImage.mockRejectedValue(
+      new Error('Erro no Cloudinary'),
+    );
+
+    await expect(
+      service.update(
+        restaurantId,
+        ownerId,
+        dto,
+        logo,
+      ),
+    ).rejects.toThrow('Erro no Cloudinary');
+
+    expect(prismaMock.restaurant.update).not.toHaveBeenCalled();
+
+    expect(cloudinaryServiceMock.deleteImage).not.toHaveBeenCalled();
+  });
+
   it('deve impedir atualização de restaurante inexistente', async () => {
     const dto = {
       name: 'Novo nome',
@@ -237,6 +549,82 @@ describe('RestaurantsService', () => {
         id: restaurantId,
       },
     });
+
+    expect(result).toEqual({
+      message: 'Restaurante removido com sucesso',
+    });
+  });
+
+  it('deve remover logo e banner do Cloudinary ao remover um restaurante', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      description: 'Hambúrguer artesanal',
+      ownerId,
+      logo: 'https://cloudinary.com/logo.jpg',
+      logoPublicId: 'restaurants/restaurant-1/logo/logo',
+      banner: 'https://cloudinary.com/banner.jpg',
+      bannerPublicId: 'restaurants/restaurant-1/banner/banner',
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
+
+    prismaMock.restaurant.delete.mockResolvedValue(restaurant);
+
+    const result = await service.remove(
+      restaurantId,
+      ownerId,
+    );
+
+    expect(prismaMock.restaurant.delete).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+      },
+    });
+
+    expect(cloudinaryServiceMock.deleteImage).toHaveBeenNthCalledWith(
+      1,
+      restaurant.logoPublicId,
+    );
+
+    expect(cloudinaryServiceMock.deleteImage).toHaveBeenNthCalledWith(
+      2,
+      restaurant.bannerPublicId,
+    );
+
+    expect(result).toEqual({
+      message: 'Restaurante removido com sucesso',
+    });
+  });
+
+  it('deve remover um restaurante sem tentar remover imagens do Cloudinary', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      description: 'Hambúrguer artesanal',
+      ownerId,
+      logo: null,
+      logoPublicId: null,
+      banner: null,
+      bannerPublicId: null,
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
+
+    prismaMock.restaurant.delete.mockResolvedValue(restaurant);
+
+    const result = await service.remove(
+      restaurantId,
+      ownerId,
+    );
+
+    expect(prismaMock.restaurant.delete).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+      },
+    });
+
+    expect(cloudinaryServiceMock.deleteImage).not.toHaveBeenCalled();
 
     expect(result).toEqual({
       message: 'Restaurante removido com sucesso',

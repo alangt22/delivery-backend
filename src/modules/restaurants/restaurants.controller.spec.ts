@@ -160,12 +160,74 @@ describe('RestaurantsController', () => {
       restaurantId,
       req,
       dto,
+      {
+        logo: undefined,
+        banner: undefined,
+      },
     );
 
     expect(restaurantsServiceMock.update).toHaveBeenCalledWith(
       restaurantId,
       userId,
       dto,
+      undefined,
+      undefined,
+    );
+
+    expect(result).toEqual(restaurant);
+  });
+
+  it('deve atualizar um restaurante enviando logo e banner', async () => {
+    const dto = {
+      name: 'Alan Burger Atualizado',
+    };
+
+    const logo = {
+      buffer: Buffer.from('logo'),
+      originalname: 'logo.png',
+      mimetype: 'image/png',
+    } as Express.Multer.File;
+
+    const banner = {
+      buffer: Buffer.from('banner'),
+      originalname: 'banner.jpg',
+      mimetype: 'image/jpeg',
+    } as Express.Multer.File;
+
+    const restaurant = {
+      id: restaurantId,
+      name: dto.name,
+      ownerId: userId,
+      logo: 'https://cloudinary.com/logo.png',
+      banner: 'https://cloudinary.com/banner.jpg',
+    };
+
+    restaurantsServiceMock.update.mockResolvedValue(restaurant);
+
+    const req = {
+      user: {
+        id: userId,
+      },
+    };
+
+    const files = {
+      logo: [logo],
+      banner: [banner],
+    };
+
+    const result = await controller.update(
+      restaurantId,
+      req,
+      dto,
+      files,
+    );
+
+    expect(restaurantsServiceMock.update).toHaveBeenCalledWith(
+      restaurantId,
+      userId,
+      dto,
+      logo,
+      banner,
     );
 
     expect(result).toEqual(restaurant);
