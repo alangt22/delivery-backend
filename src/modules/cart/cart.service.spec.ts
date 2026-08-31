@@ -368,6 +368,65 @@ describe('CartService', () => {
     );
   });
 
+  it('deve informar todas as alterações de preço quando houver mais de um produto alterado', async () => {
+    const cart = createCart([
+      {
+        productId: 'product-1',
+        quantity: 2,
+        unitPrice: 20,
+      },
+      {
+        productId: 'product-2',
+        quantity: 1,
+        unitPrice: 10,
+      },
+    ]);
+
+    const productOne = createProduct({
+      id: 'product-1',
+      name: 'Pizza',
+      price: 25,
+    });
+
+    const productTwo = createProduct({
+      id: 'product-2',
+      name: 'Refrigerante',
+      price: 12,
+    });
+
+    prismaMock.cart.findUnique.mockResolvedValue(cart);
+    addressesServiceMock.findById.mockResolvedValue(address);
+    prismaMock.product.findMany.mockResolvedValue([
+      productOne,
+      productTwo,
+    ]);
+
+    await expect(
+      service.checkout(userId, addressId, false),
+    ).rejects.toMatchObject({
+      response: {
+        message: 'Alguns produtos tiveram alteração de preço.',
+        code: 'PRICE_CHANGED',
+        items: [
+          {
+            productId: 'product-1',
+            productName: 'Pizza',
+            oldPrice: 20,
+            newPrice: 25,
+          },
+          {
+            productId: 'product-2',
+            productName: 'Refrigerante',
+            oldPrice: 10,
+            newPrice: 12,
+          },
+        ],
+      },
+    });
+
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
   it('deve criar um novo carrinho ao adicionar produto quando o usuário ainda não possui carrinho', async () => {
     prismaMock.cart.findUnique.mockResolvedValue(null);
 
@@ -901,6 +960,23 @@ describe('CartService', () => {
         cartId: 'cart-1',
       },
     });
+  });
+
+  it('deve lançar NotFoundException quando o carrinho não for encontrado ao remover item', async () => {
+    prismaMock.cart.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.removeCartItem(userId, 'cart-item-1'),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prismaMock.cart.findUnique).toHaveBeenCalledWith({
+      where: {
+        userId,
+      },
+    });
+
+    expect(prismaMock.cartItem.findFirst).not.toHaveBeenCalled();
+    expect(prismaMock.cartItem.delete).not.toHaveBeenCalled();
   });
 
   it('deve lançar NotFoundException quando o carrinho não for encontrado ao atualizar quantidade', async () => {
