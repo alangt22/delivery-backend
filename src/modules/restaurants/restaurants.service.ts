@@ -114,6 +114,54 @@ export class RestaurantsService {
     return updatedRestaurant;
   }
 
+  // Retorna apenas restaurantes aprovados para a vitrine pública.
+  async findPublicAll() {
+    return this.prisma.restaurant.findMany({
+      where: {
+        status: 'APPROVED',
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        logo: true,
+        banner: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  // Retorna um restaurante aprovado pelo ID para a vitrine pública.
+  async findPublicById(id: string) {
+    const restaurant = await this.prisma.restaurant.findFirst({
+      where: {
+        id,
+        status: 'APPROVED',
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        logo: true,
+        banner: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException('Restaurante não encontrado');
+    }
+
+    return restaurant;
+  }
+
   async remove(id: string, ownerId: string) {
     const restaurant = await this.findById(id, ownerId);
 

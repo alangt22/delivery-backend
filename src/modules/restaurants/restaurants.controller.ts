@@ -35,7 +35,7 @@ import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
 export class RestaurantsController {
   constructor(
     private readonly restaurantsService: RestaurantsService,
-  ) {}
+  ) { }
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -76,6 +76,43 @@ export class RestaurantsController {
   })
   findAll(@Req() req) {
     return this.restaurantsService.findAllByOwner(req.user.id);
+  }
+
+  @Get()
+  @ApiOperation({
+    summary: 'Listar restaurantes públicos',
+    description:
+      'Retorna os restaurantes aprovados disponíveis para os consumidores.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Restaurantes públicos retornados com sucesso.',
+  })
+  findPublicAll() {
+    return this.restaurantsService.findPublicAll();
+  }
+
+  @Get('public/:id')
+  @ApiOperation({
+    summary: 'Buscar restaurante público',
+    description:
+      'Retorna os dados públicos de um restaurante aprovado.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Restaurante público retornado com sucesso.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Restaurante não encontrado.',
+  })
+  findPublicById(@Param('id') id: string) {
+    return this.restaurantsService.findPublicById(id);
   }
 
   @Get(':id')

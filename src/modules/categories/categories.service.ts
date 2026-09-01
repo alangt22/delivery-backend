@@ -9,7 +9,6 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 export class CategoriesService {
   constructor(
     private prisma: PrismaService,
-
     private restaurantsService: RestaurantsService,
   ) {}
 
@@ -55,6 +54,50 @@ export class CategoriesService {
     return category;
   }
 
+  // Retorna as categorias de um restaurante aprovado para a vitrine pública.
+  async findPublicAllByRestaurant(restaurantId: string) {
+    await this.restaurantsService.findPublicById(restaurantId);
+
+    return this.prisma.category.findMany({
+      where: {
+        restaurantId,
+      },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+  }
+
+  // Retorna uma categoria específica de um restaurante aprovado.
+  async findPublicById(categoryId: string, restaurantId: string) {
+    await this.restaurantsService.findPublicById(restaurantId);
+
+    const category = await this.prisma.category.findFirst({
+      where: {
+        id: categoryId,
+        restaurantId,
+      },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundException('Categoria não encontrada');
+    }
+
+    return category;
+  }
+
   async update(categoryId: string, restaurantId: string, ownerId: string, dto: UpdateCategoryDto) {
     await this.findById(categoryId, restaurantId, ownerId);
 
@@ -65,7 +108,7 @@ export class CategoriesService {
       data: dto,
     });
   }
-
+  
   async remove(categoryId: string, restaurantId: string, ownerId: string) {
     await this.findById(categoryId, restaurantId, ownerId);
 
@@ -81,5 +124,5 @@ export class CategoriesService {
   }
 }
 
-    
+
 

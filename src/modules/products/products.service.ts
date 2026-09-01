@@ -11,7 +11,7 @@ export class ProductsService {
     private prisma: PrismaService,
     private categoriesService: CategoriesService,
     private cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
   async create(
     dto: CreateProductDto,
@@ -72,6 +72,75 @@ export class ProductsService {
       where: {
         id: productId,
         categoryId,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Produto não encontrado');
+    }
+
+    return product;
+  }
+
+  // Retorna apenas os produtos disponíveis de um restaurante aprovado.
+  async findPublicAll(
+    restaurantId: string,
+    categoryId: string,
+  ) {
+    await this.categoriesService.findPublicById(
+      categoryId,
+      restaurantId,
+    );
+
+    return this.prisma.product.findMany({
+      where: {
+        categoryId,
+        isAvailable: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        price: true,
+        image: true,
+        isAvailable: true,
+        categoryId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+  }
+
+  // Retorna um produto disponível de uma categoria e restaurante aprovados.
+  async findPublicById(
+    productId: string,
+    restaurantId: string,
+    categoryId: string,
+  ) {
+    await this.categoriesService.findPublicById(
+      categoryId,
+      restaurantId,
+    );
+
+    const product = await this.prisma.product.findFirst({
+      where: {
+        id: productId,
+        categoryId,
+        isAvailable: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        price: true,
+        image: true,
+        isAvailable: true,
+        categoryId: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 

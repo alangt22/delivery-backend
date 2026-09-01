@@ -64,6 +64,63 @@ export class CategoriesController {
     return this.categoriesService.create(dto, restaurantId, req.user.id);
   }
 
+  @Get('public')
+  @ApiOperation({
+    summary: 'Listar categorias públicas',
+    description:
+      'Retorna as categorias de um restaurante aprovado para os consumidores.',
+  })
+  @ApiParam({
+    name: 'restaurantId',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Categorias públicas retornadas com sucesso.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Restaurante não encontrado ou não aprovado.',
+  })
+  findPublicAll(@Param('restaurantId') restaurantId: string) {
+    return this.categoriesService.findPublicAllByRestaurant(restaurantId);
+  }
+
+  @Get('public/:categoryId')
+  @ApiOperation({
+    summary: 'Buscar categoria pública',
+    description:
+      'Retorna uma categoria específica de um restaurante aprovado.',
+  })
+  @ApiParam({
+    name: 'restaurantId',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiParam({
+    name: 'categoryId',
+    description: 'ID da categoria',
+    example: 'category-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Categoria pública retornada com sucesso.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Categoria ou restaurante não encontrado.',
+  })
+  findPublicById(
+    @Param('restaurantId') restaurantId: string,
+    @Param('categoryId') categoryId: string,
+  ) {
+    return this.categoriesService.findPublicById(
+      categoryId,
+      restaurantId,
+    );
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({

@@ -110,6 +110,81 @@ export class ProductsController {
     );
   }
 
+  @Get('public')
+  @ApiOperation({
+    summary: 'Listar produtos públicos',
+    description:
+      'Retorna apenas os produtos disponíveis de uma categoria de um restaurante aprovado.',
+  })
+  @ApiParam({
+    name: 'restaurantId',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiParam({
+    name: 'categoryId',
+    description: 'ID da categoria',
+    example: 'category-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Produtos públicos retornados com sucesso.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Categoria ou restaurante não encontrado.',
+  })
+  findPublicAll(
+    @Param('restaurantId') restaurantId: string,
+    @Param('categoryId') categoryId: string,
+  ) {
+    return this.productsService.findPublicAll(
+      restaurantId,
+      categoryId,
+    );
+  }
+
+  @Get('public/:productId')
+  @ApiOperation({
+    summary: 'Buscar produto público',
+    description:
+      'Retorna um produto disponível de uma categoria de um restaurante aprovado.',
+  })
+  @ApiParam({
+    name: 'restaurantId',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiParam({
+    name: 'categoryId',
+    description: 'ID da categoria',
+    example: 'category-123',
+  })
+  @ApiParam({
+    name: 'productId',
+    description: 'ID do produto',
+    example: 'product-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Produto público retornado com sucesso.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Produto, categoria ou restaurante não encontrado.',
+  })
+  findPublicById(
+    @Param('restaurantId') restaurantId: string,
+    @Param('categoryId') categoryId: string,
+    @Param('productId') productId: string,
+  ) {
+    return this.productsService.findPublicById(
+      productId,
+      restaurantId,
+      categoryId,
+    );
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({
