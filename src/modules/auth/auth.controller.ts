@@ -113,9 +113,9 @@ export class AuthController {
   })
   googleCallback(@Req() req, @Res() res: Response) {
     const { access_token } = req.user;
-
+    
     return res.redirect(
-      `http://localhost:3001/auth/callback?token=${access_token}`,
+      `${process.env.FRONTEND_URL}/auth/callback?token=${access_token}`,
     );
   }
 }
