@@ -11,25 +11,48 @@ import {
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+
+import { FileInterceptor } from '@nestjs/platform-express';
+
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-prodctdto';
-import { FileInterceptor } from '@nestjs/platform-express';
 
-import {
-  ApiConsumes,
-  ApiBody,
-} from '@nestjs/swagger';
-
-
+@ApiTags('Products')
+@ApiBearerAuth()
 @Controller('restaurants/:restaurantId/categories/:categoryId/products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) { }
+  constructor(private readonly productsService: ProductsService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(FileInterceptor('image'))
+  @ApiOperation({
+    summary: 'Criar produto',
+    description:
+      'Cria um produto dentro de uma categoria e permite enviar uma imagem.',
+  })
+  @ApiParam({
+    name: 'restaurantId',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiParam({
+    name: 'categoryId',
+    description: 'ID da categoria',
+    example: 'category-123',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -55,6 +78,22 @@ export class ProductsController {
       required: ['name', 'price'],
     },
   })
+  @ApiResponse({
+    status: 201,
+    description: 'Produto criado com sucesso.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dados enviados são inválidos ou categoria inválida.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Usuário não autenticado.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Categoria ou restaurante não encontrado.',
+  })
   create(
     @Param('restaurantId') restaurantId: string,
     @Param('categoryId') categoryId: string,
@@ -73,6 +112,33 @@ export class ProductsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Listar produtos da categoria',
+    description:
+      'Retorna todos os produtos pertencentes à categoria informada.',
+  })
+  @ApiParam({
+    name: 'restaurantId',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiParam({
+    name: 'categoryId',
+    description: 'ID da categoria',
+    example: 'category-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Produtos retornados com sucesso.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Usuário não autenticado.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Categoria ou restaurante não encontrado.',
+  })
   findAll(
     @Param('restaurantId') restaurantId: string,
     @Param('categoryId') categoryId: string,
@@ -85,9 +151,39 @@ export class ProductsController {
     );
   }
 
-
   @Get(':productId')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Buscar produto por ID',
+    description: 'Retorna um produto específico da categoria.',
+  })
+  @ApiParam({
+    name: 'restaurantId',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiParam({
+    name: 'categoryId',
+    description: 'ID da categoria',
+    example: 'category-123',
+  })
+  @ApiParam({
+    name: 'productId',
+    description: 'ID do produto',
+    example: 'product-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Produto encontrado com sucesso.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Usuário não autenticado.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Produto, categoria ou restaurante não encontrado.',
+  })
   findById(
     @Param('productId') productId: string,
     @Param('categoryId') categoryId: string,
@@ -102,10 +198,29 @@ export class ProductsController {
     );
   }
 
-
   @Patch(':productId')
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(FileInterceptor('image'))
+  @ApiOperation({
+    summary: 'Atualizar produto',
+    description:
+      'Atualiza os dados do produto e permite substituir sua imagem.',
+  })
+  @ApiParam({
+    name: 'restaurantId',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiParam({
+    name: 'categoryId',
+    description: 'ID da categoria',
+    example: 'category-123',
+  })
+  @ApiParam({
+    name: 'productId',
+    description: 'ID do produto',
+    example: 'product-123',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -130,6 +245,22 @@ export class ProductsController {
       },
     },
   })
+  @ApiResponse({
+    status: 200,
+    description: 'Produto atualizado com sucesso.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Dados enviados são inválidos.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Usuário não autenticado.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Produto, categoria ou restaurante não encontrado.',
+  })
   update(
     @Param('productId') productId: string,
     @Param('categoryId') categoryId: string,
@@ -148,9 +279,39 @@ export class ProductsController {
     );
   }
 
-
   @Delete(':productId')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Remover produto',
+    description: 'Remove um produto da categoria.',
+  })
+  @ApiParam({
+    name: 'restaurantId',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiParam({
+    name: 'categoryId',
+    description: 'ID da categoria',
+    example: 'category-123',
+  })
+  @ApiParam({
+    name: 'productId',
+    description: 'ID do produto',
+    example: 'product-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Produto removido com sucesso.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Usuário não autenticado.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Produto, categoria ou restaurante não encontrado.',
+  })
   delete(
     @Param('productId') productId: string,
     @Param('categoryId') categoryId: string,
