@@ -28,6 +28,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RestaurantsService } from './restaurants.service';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
+import { Role } from '@prisma/client';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('Restaurants')
 @ApiBearerAuth()
@@ -77,6 +80,64 @@ export class RestaurantsController {
   findAll(@Req() req) {
     return this.restaurantsService.findAllByOwner(req.user.id);
   }
+
+  @Get('admin/pending')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Listar restaurantes pendentes',
+    description:
+      'Retorna os restaurantes que aguardam aprovação administrativa.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Restaurantes pendentes retornados com sucesso.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Usuário não autenticado.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Usuário não possui permissão de administrador.',
+  })
+  findPending() {
+    return this.restaurantsService.findPending();
+  }
+
+  @Patch('admin/:id/approve')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Aprovar restaurante',
+    description:
+      'Aprova um restaurante pendente e o disponibiliza na vitrine pública.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Restaurante aprovado com sucesso.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Usuário não autenticado.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Usuário não possui permissão de administrador.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Restaurante não encontrado ou já processado.',
+  })
+  approve(@Param('id') id: string) {
+    return this.restaurantsService.approve(id);
+  }
+
 
   @Get()
   @ApiOperation({

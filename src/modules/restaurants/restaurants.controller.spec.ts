@@ -19,6 +19,8 @@ describe('RestaurantsController', () => {
       findById: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
+      findPending: jest.fn(),
+      approve: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -104,6 +106,48 @@ describe('RestaurantsController', () => {
     ).toHaveBeenCalledWith(userId);
 
     expect(result).toEqual(restaurants);
+  });
+
+  it('deve listar os restaurantes pendentes', async () => {
+    const restaurants = [
+      {
+        id: restaurantId,
+        name: 'Alan Burger',
+        description: 'Hambúrguer artesanal',
+        ownerId: userId,
+        status: 'PENDING',
+      },
+    ];
+
+    restaurantsServiceMock.findPending.mockResolvedValue(restaurants);
+
+    const result = await controller.findPending();
+
+    expect(
+      restaurantsServiceMock.findPending,
+    ).toHaveBeenCalledWith();
+
+    expect(result).toEqual(restaurants);
+  });
+
+  it('deve aprovar um restaurante', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      description: 'Hambúrguer artesanal',
+      ownerId: userId,
+      status: 'APPROVED',
+    };
+
+    restaurantsServiceMock.approve.mockResolvedValue(restaurant);
+
+    const result = await controller.approve(restaurantId);
+
+    expect(
+      restaurantsServiceMock.approve,
+    ).toHaveBeenCalledWith(restaurantId);
+
+    expect(result).toEqual(restaurant);
   });
 
   it('deve buscar um restaurante pelo id', async () => {

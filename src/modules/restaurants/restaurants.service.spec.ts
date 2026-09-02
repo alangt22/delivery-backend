@@ -727,4 +727,87 @@ describe('RestaurantsService', () => {
       service.findPublicById(restaurantId),
     ).rejects.toThrow(NotFoundException);
   });
+
+  it('deve retornar apenas restaurantes pendentes', async () => {
+    const pendingRestaurants = [
+      {
+        id: 'restaurant-1',
+        name: 'Alan Burger',
+        status: 'PENDING',
+        ownerId: 'owner-1',
+      },
+      {
+        id: 'restaurant-2',
+        name: 'Alan Pizza',
+        status: 'PENDING',
+        ownerId: 'owner-2',
+      },
+    ];
+
+    prismaMock.restaurant.findMany.mockResolvedValue(
+      pendingRestaurants,
+    );
+
+    const result = await service.findPending();
+
+    expect(prismaMock.restaurant.findMany).toHaveBeenCalledWith({
+      where: {
+        status: 'PENDING',
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    expect(result).toEqual(pendingRestaurants);
+  });
+
+  it('deve aprovar um restaurante pendente', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      status: 'PENDING',
+      ownerId,
+    };
+
+    const approvedRestaurant = {
+      ...restaurant,
+      status: 'APPROVED',
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
+    prismaMock.restaurant.update.mockResolvedValue(
+      approvedRestaurant,
+    );
+
+    const result = await service.approve(restaurantId);
+
+    expect(prismaMock.restaurant.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+        status: 'PENDING',
+      },
+    });
+
+    expect(prismaMock.restaurant.update).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+      },
+      data: {
+        status: 'APPROVED',
+      },
+    });
+
+    expect(result).toEqual(approvedRestaurant);
+  });
+
+  it('deve impedir aprovação de restaurante inexistente ou já processado', async () => {
+    prismaMock.restaurant.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.approve(restaurantId),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prismaMock.restaurant.update).not.toHaveBeenCalled();
+  });
 });

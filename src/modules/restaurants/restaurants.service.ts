@@ -162,6 +162,43 @@ export class RestaurantsService {
     return restaurant;
   }
 
+  // Retorna os restaurantes que aguardam aprovação administrativa.
+  async findPending() {
+    return this.prisma.restaurant.findMany({
+      where: {
+        status: 'PENDING',
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+  }
+
+  // Aprova um restaurante pendente para disponibilizá-lo na vitrine pública.
+  async approve(id: string) {
+    const restaurant = await this.prisma.restaurant.findFirst({
+      where: {
+        id,
+        status: 'PENDING',
+      },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException(
+        'Restaurante não encontrado ou já processado',
+      );
+    }
+
+    return this.prisma.restaurant.update({
+      where: {
+        id,
+      },
+      data: {
+        status: 'APPROVED',
+      },
+    });
+  }
+
   async remove(id: string, ownerId: string) {
     const restaurant = await this.findById(id, ownerId);
 
