@@ -32,6 +32,7 @@ describe('ProductsService', () => {
 
     categoriesServiceMock = {
       findById: jest.fn(),
+      findPublicById: jest.fn(),
     };
 
     cloudinaryServiceMock = {
@@ -780,5 +781,129 @@ describe('ProductsService', () => {
     await expect(
       service.findAvailableById('product-1'),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('deve retornar apenas produtos disponíveis para a vitrine pública', async () => {
+    categoriesServiceMock.findPublicById.mockResolvedValue({
+      id: categoryId,
+      name: 'Pizzas',
+    });
+
+    const products = [
+      {
+        id: 'product-1',
+        name: 'Pizza Calabresa',
+        description: 'Pizza de calabresa',
+        price: 35,
+        image: 'pizza.jpg',
+        isAvailable: true,
+        categoryId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    prismaMock.product.findMany.mockResolvedValue(products);
+
+    const result = await service.findPublicAll(
+      restaurantId,
+      categoryId,
+    );
+
+    expect(categoriesServiceMock.findPublicById).toHaveBeenCalledWith(
+      categoryId,
+      restaurantId,
+    );
+
+    expect(prismaMock.product.findMany).toHaveBeenCalledWith({
+      where: {
+        categoryId,
+        isAvailable: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        price: true,
+        image: true,
+        isAvailable: true,
+        categoryId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    expect(result).toEqual(products);
+  });
+
+  it('deve impedir busca pública quando a categoria não for válida', async () => {
+    categoriesServiceMock.findPublicById.mockRejectedValue(
+      new NotFoundException('Categoria não encontrada'),
+    );
+
+    await expect(
+      service.findPublicAll(
+        restaurantId,
+        categoryId,
+      ),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prismaMock.product.findMany).not.toHaveBeenCalled();
+  });
+
+  it('deve buscar um produto público disponível', async () => {
+    categoriesServiceMock.findPublicById.mockResolvedValue({
+      id: categoryId,
+      name: 'Pizzas',
+    });
+
+    const product = {
+      id: 'product-1',
+      name: 'Pizza Calabresa',
+      description: 'Pizza de calabresa',
+      price: 35,
+      image: 'pizza.jpg',
+      isAvailable: true,
+      categoryId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    prismaMock.product.findFirst.mockResolvedValue(product);
+
+    const result = await service.findPublicById(
+      'product-1',
+      restaurantId,
+      categoryId,
+    );
+
+    expect(categoriesServiceMock.findPublicById).toHaveBeenCalledWith(
+      categoryId,
+      restaurantId,
+    );
+
+    expect(prismaMock.product.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'product-1',
+        categoryId,
+        isAvailable: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        price: true,
+        image: true,
+        isAvailable: true,
+        categoryId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    expect(result).toEqual(product);
   });
 });

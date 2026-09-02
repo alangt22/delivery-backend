@@ -29,6 +29,7 @@ describe('CategoriesService', () => {
 
     restaurantsServiceMock = {
       findById: jest.fn(),
+      findPublicById: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -306,5 +307,108 @@ describe('CategoriesService', () => {
     ).rejects.toThrow(NotFoundException);
 
     expect(prismaMock.category.delete).not.toHaveBeenCalled();
+  });
+
+  it('deve retornar as categorias de um restaurante aprovado', async () => {
+    restaurantsServiceMock.findPublicById.mockResolvedValue({
+      id: restaurantId,
+      name: 'Alan Burger',
+      status: 'APPROVED',
+    });
+
+    const categories = [
+      {
+        id: 'category-1',
+        name: 'Pizzas',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: 'category-2',
+        name: 'Bebidas',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    prismaMock.category.findMany.mockResolvedValue(categories);
+
+    const result = await service.findPublicAllByRestaurant(
+      restaurantId,
+    );
+
+    expect(restaurantsServiceMock.findPublicById).toHaveBeenCalledWith(
+      restaurantId,
+    );
+
+    expect(prismaMock.category.findMany).toHaveBeenCalledWith({
+      where: {
+        restaurantId,
+      },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    expect(result).toEqual(categories);
+  });
+
+  it('deve impedir busca pública de categorias quando o restaurante não for aprovado', async () => {
+    restaurantsServiceMock.findPublicById.mockRejectedValue(
+      new NotFoundException('Restaurante não encontrado'),
+    );
+
+    await expect(
+      service.findPublicAllByRestaurant(restaurantId),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prismaMock.category.findMany).not.toHaveBeenCalled();
+  });
+
+  it('deve buscar uma categoria pública pertencente ao restaurante', async () => {
+    restaurantsServiceMock.findPublicById.mockResolvedValue({
+      id: restaurantId,
+      name: 'Alan Burger',
+      status: 'APPROVED',
+    });
+
+    const category = {
+      id: categoryId,
+      name: 'Pizzas',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    prismaMock.category.findFirst.mockResolvedValue(category);
+
+    const result = await service.findPublicById(
+      categoryId,
+      restaurantId,
+    );
+
+    expect(restaurantsServiceMock.findPublicById).toHaveBeenCalledWith(
+      restaurantId,
+    );
+
+    expect(prismaMock.category.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: categoryId,
+        restaurantId,
+      },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    expect(result).toEqual(category);
   });
 });

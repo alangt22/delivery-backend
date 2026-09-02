@@ -643,4 +643,88 @@ describe('RestaurantsService', () => {
 
     expect(prismaMock.restaurant.delete).not.toHaveBeenCalled();
   });
+
+  it('deve retornar apenas restaurantes aprovados para a vitrine pública', async () => {
+    const restaurants = [
+      {
+        id: restaurantId,
+        name: 'Alan Burger',
+        description: 'Hambúrguer artesanal',
+        logo: 'logo.jpg',
+        banner: 'banner.jpg',
+        status: 'APPROVED',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    prismaMock.restaurant.findMany.mockResolvedValue(restaurants);
+
+    const result = await service.findPublicAll();
+
+    expect(prismaMock.restaurant.findMany).toHaveBeenCalledWith({
+      where: {
+        status: 'APPROVED',
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        logo: true,
+        banner: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    expect(result).toEqual(restaurants);
+  });
+
+  it('deve buscar um restaurante aprovado para a vitrine pública', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      description: 'Hambúrguer artesanal',
+      logo: 'logo.jpg',
+      banner: 'banner.jpg',
+      status: 'APPROVED',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
+
+    const result = await service.findPublicById(restaurantId);
+
+    expect(prismaMock.restaurant.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+        status: 'APPROVED',
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        logo: true,
+        banner: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    expect(result).toEqual(restaurant);
+  });
+
+  it('deve lançar NotFoundException para restaurante inexistente ou não aprovado', async () => {
+    prismaMock.restaurant.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.findPublicById(restaurantId),
+    ).rejects.toThrow(NotFoundException);
+  });
 });
