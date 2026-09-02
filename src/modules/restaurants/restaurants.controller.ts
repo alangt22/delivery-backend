@@ -138,6 +138,105 @@ export class RestaurantsController {
     return this.restaurantsService.approve(id);
   }
 
+  @Patch('admin/:id/reject')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Rejeitar restaurante',
+    description:
+      'Rejeita um restaurante pendente e impede sua disponibilização na vitrine pública.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Restaurante rejeitado com sucesso.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Usuário não autenticado.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Usuário não possui permissão de administrador.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Restaurante não encontrado ou já processado.',
+  })
+  reject(@Param('id') id: string) {
+    return this.restaurantsService.reject(id);
+  }
+
+  @Patch('admin/:id/suspend')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Suspender restaurante',
+    description:
+      'Suspende um restaurante aprovado e remove sua disponibilidade na vitrine pública.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Restaurante suspenso com sucesso.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Usuário não autenticado.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Usuário não possui permissão de administrador.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Restaurante não encontrado ou não está aprovado.',
+  })
+  suspend(@Param('id') id: string) {
+    return this.restaurantsService.suspend(id);
+  }
+
+  @Patch('admin/:id/reactivate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Reativar restaurante',
+    description:
+      'Reativa um restaurante suspenso e o disponibiliza novamente na vitrine pública.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID do restaurante',
+    example: 'restaurant-123',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Restaurante reativado com sucesso.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Usuário não autenticado.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Usuário não possui permissão de administrador.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Restaurante não encontrado ou não está suspenso.',
+  })
+  reactivate(@Param('id') id: string) {
+    return this.restaurantsService.reactivate(id);
+  }
+
 
   @Get()
   @ApiOperation({

@@ -810,4 +810,160 @@ describe('RestaurantsService', () => {
 
     expect(prismaMock.restaurant.update).not.toHaveBeenCalled();
   });
+
+  it('deve rejeitar um restaurante pendente', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      status: 'PENDING',
+    };
+
+    const rejectedRestaurant = {
+      ...restaurant,
+      status: 'REJECTED',
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
+    prismaMock.restaurant.update.mockResolvedValue(
+      rejectedRestaurant,
+    );
+
+    const result = await service.reject(restaurantId);
+
+    expect(
+      prismaMock.restaurant.findFirst,
+    ).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+        status: 'PENDING',
+      },
+    });
+
+    expect(
+      prismaMock.restaurant.update,
+    ).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+      },
+      data: {
+        status: 'REJECTED',
+      },
+    });
+
+    expect(result).toEqual(rejectedRestaurant);
+  });
+
+  it('deve suspender um restaurante aprovado', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      status: 'APPROVED',
+    };
+
+    const suspendedRestaurant = {
+      ...restaurant,
+      status: 'SUSPENDED',
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
+    prismaMock.restaurant.update.mockResolvedValue(
+      suspendedRestaurant,
+    );
+
+    const result = await service.suspend(restaurantId);
+
+    expect(
+      prismaMock.restaurant.findFirst,
+    ).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+        status: 'APPROVED',
+      },
+    });
+
+    expect(
+      prismaMock.restaurant.update,
+    ).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+      },
+      data: {
+        status: 'SUSPENDED',
+      },
+    });
+
+    expect(result).toEqual(suspendedRestaurant);
+  });
+
+  it('deve reativar um restaurante suspenso', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      status: 'SUSPENDED',
+    };
+
+    const reactivatedRestaurant = {
+      ...restaurant,
+      status: 'APPROVED',
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
+    prismaMock.restaurant.update.mockResolvedValue(
+      reactivatedRestaurant,
+    );
+
+    const result = await service.reactivate(restaurantId);
+
+    expect(
+      prismaMock.restaurant.findFirst,
+    ).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+        status: 'SUSPENDED',
+      },
+    });
+
+    expect(
+      prismaMock.restaurant.update,
+    ).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+      },
+      data: {
+        status: 'APPROVED',
+      },
+    });
+
+    expect(result).toEqual(reactivatedRestaurant);
+  });
+
+  it('deve impedir rejeição de restaurante inexistente ou já processado', async () => {
+    prismaMock.restaurant.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.reject(restaurantId),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prismaMock.restaurant.update).not.toHaveBeenCalled();
+  });
+
+  it('deve impedir suspensão de restaurante inexistente ou não aprovado', async () => {
+    prismaMock.restaurant.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.suspend(restaurantId),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prismaMock.restaurant.update).not.toHaveBeenCalled();
+  });
+
+  it('deve impedir reativação de restaurante inexistente ou não suspenso', async () => {
+    prismaMock.restaurant.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.reactivate(restaurantId),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prismaMock.restaurant.update).not.toHaveBeenCalled();
+  });
 });

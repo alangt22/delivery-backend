@@ -199,6 +199,81 @@ export class RestaurantsService {
     });
   }
 
+  // Rejeita um restaurante pendente e impede sua publicação na vitrine.
+  async reject(id: string) {
+    const restaurant = await this.prisma.restaurant.findFirst({
+      where: {
+        id,
+        status: 'PENDING',
+      },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException(
+        'Restaurante não encontrado ou já processado',
+      );
+    }
+
+    return this.prisma.restaurant.update({
+      where: {
+        id,
+      },
+      data: {
+        status: 'REJECTED',
+      },
+    });
+  }
+
+  // Suspende um restaurante aprovado e remove sua disponibilidade na vitrine.
+  async suspend(id: string) {
+    const restaurant = await this.prisma.restaurant.findFirst({
+      where: {
+        id,
+        status: 'APPROVED',
+      },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException(
+        'Restaurante não encontrado ou não está aprovado',
+      );
+    }
+
+    return this.prisma.restaurant.update({
+      where: {
+        id,
+      },
+      data: {
+        status: 'SUSPENDED',
+      },
+    });
+  }
+
+  // Reativa um restaurante suspenso e o disponibiliza novamente na vitrine.
+  async reactivate(id: string) {
+    const restaurant = await this.prisma.restaurant.findFirst({
+      where: {
+        id,
+        status: 'SUSPENDED',
+      },
+    });
+
+    if (!restaurant) {
+      throw new NotFoundException(
+        'Restaurante não encontrado ou não está suspenso',
+      );
+    }
+
+    return this.prisma.restaurant.update({
+      where: {
+        id,
+      },
+      data: {
+        status: 'APPROVED',
+      },
+    });
+  }
+
   async remove(id: string, ownerId: string) {
     const restaurant = await this.findById(id, ownerId);
 

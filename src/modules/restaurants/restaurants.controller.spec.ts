@@ -21,6 +21,9 @@ describe('RestaurantsController', () => {
       remove: jest.fn(),
       findPending: jest.fn(),
       approve: jest.fn(),
+      reject: jest.fn(),
+      suspend: jest.fn(),
+      reactivate: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -301,5 +304,59 @@ describe('RestaurantsController', () => {
     );
 
     expect(result).toEqual(response);
+  });
+
+  it('deve rejeitar um restaurante', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      status: 'REJECTED',
+    };
+
+    restaurantsServiceMock.reject.mockResolvedValue(restaurant);
+
+    const result = await controller.reject(restaurantId);
+
+    expect(
+      restaurantsServiceMock.reject,
+    ).toHaveBeenCalledWith(restaurantId);
+
+    expect(result).toEqual(restaurant);
+  });
+
+  it('deve suspender um restaurante', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      status: 'SUSPENDED',
+    };
+
+    restaurantsServiceMock.suspend.mockResolvedValue(restaurant);
+
+    const result = await controller.suspend(restaurantId);
+
+    expect(
+      restaurantsServiceMock.suspend,
+    ).toHaveBeenCalledWith(restaurantId);
+
+    expect(result).toEqual(restaurant);
+  });
+
+  it('deve reativar um restaurante', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      status: 'APPROVED',
+    };
+
+    restaurantsServiceMock.reactivate.mockResolvedValue(restaurant);
+
+    const result = await controller.reactivate(restaurantId);
+
+    expect(
+      restaurantsServiceMock.reactivate,
+    ).toHaveBeenCalledWith(restaurantId);
+
+    expect(result).toEqual(restaurant);
   });
 });
