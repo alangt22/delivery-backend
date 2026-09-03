@@ -111,6 +111,26 @@ describe('AuthService', () => {
     expect(jwtServiceMock.signAsync).not.toHaveBeenCalled();
   });
 
+  it('deve impedir login por senha de usuário bloqueado', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'alan@example.com',
+      passwordHash: 'hashed-password',
+      role: 'CUSTOMER',
+      isBlocked: true,
+    });
+
+    await expect(
+      service.login({
+        email: 'alan@example.com',
+        password: 'password123',
+      }),
+    ).rejects.toThrow(UnauthorizedException);
+
+    expect(bcrypt.compare).not.toHaveBeenCalled();
+    expect(jwtServiceMock.signAsync).not.toHaveBeenCalled();
+  });
+
   it('deve bloquear login por senha para conta Google sem passwordHash', async () => {
     prismaMock.user.findUnique.mockResolvedValue({
       id: 'user-1',
@@ -308,4 +328,27 @@ describe('AuthService', () => {
 
     expect(result.user).not.toHaveProperty('passwordHash');
   })
+
+  it('deve impedir login com Google para usuário bloqueado', async () => {
+    const profile = {
+      id: 'google-id-1',
+      displayName: 'Alan',
+      emails: [{ value: 'alan@example.com' }],
+    } as Profile;
+
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      name: 'Alan',
+      email: 'alan@example.com',
+      googleId: 'google-id-1',
+      role: 'CUSTOMER',
+      isBlocked: true,
+    });
+
+    await expect(
+      service.validateGoogleUser(profile),
+    ).rejects.toThrow(UnauthorizedException);
+
+    expect(jwtServiceMock.signAsync).not.toHaveBeenCalled();
+  });
 });

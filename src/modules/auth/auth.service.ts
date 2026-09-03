@@ -11,7 +11,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-  ) {}
+  ) { }
 
   async register(dto: RegisterDto) {
     const userExists = await this.prisma.user.findUnique({
@@ -49,7 +49,11 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Email ou senha inválidos');
     }
-    if (!user || !user.passwordHash) {
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Usuário bloqueado');
+    }
+
+    if (!user.passwordHash) {
       throw new ConflictException('Esta conta utiliza login com Google');
     }
 
@@ -94,7 +98,7 @@ export class AuthService {
           googleId: profile.id,
         },
       });
-      
+
     } else if (!user.googleId) {
       user = await this.prisma.user.update({
         where: {
@@ -105,8 +109,14 @@ export class AuthService {
           googleId: profile.id,
         },
       });
-      
+
     }
+
+    // Impede que usuários bloqueados autentiquem pelo Google.
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Usuário bloqueado');
+    }
+
 
     const payload = {
       sub: user.id,
@@ -119,7 +129,7 @@ export class AuthService {
     const access_token = await this.jwtService.signAsync(payload);
 
     const { passwordHash, ...userWithoutPassword } = user;
-   
+
 
     return {
       user: userWithoutPassword,
