@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { PaymentStatus, OrderStatus } from '@prisma/client';
+import { PaymentStatus, OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PaymentsService } from './payments.service';
 
@@ -89,7 +89,7 @@ describe('PaymentsService', () => {
   });
 
   it('deve reutilizar o PaymentIntent quando já existe pagamento para o pedido', async () => {
-    const order = { id: 'order-1', totalAmount: 42, status: OrderStatus.PENDING };
+    const order = { id: 'order-1', totalAmount: new Prisma.Decimal(42), status: OrderStatus.PENDING };
     const existingPayment = {
       id: 'payment-1',
       stripePaymentIntentId: 'pi_existing',
@@ -118,7 +118,7 @@ describe('PaymentsService', () => {
     prismaMock.order.findFirst.mockResolvedValue({
       id: 'order-1',
       customerId: 'customer-1',
-      totalAmount: 49.9,
+      totalAmount: new Prisma.Decimal(49.9),
       status: OrderStatus.PENDING,
     });
 
@@ -153,7 +153,11 @@ describe('PaymentsService', () => {
   });
 
   it('deve criar PaymentIntent e persistir o pagamento para um novo pedido', async () => {
-    const order = { id: 'order-1', totalAmount: 42, status: OrderStatus.PENDING };
+    const order = {
+      id: 'order-1',
+      totalAmount: new Prisma.Decimal(42),
+      status: OrderStatus.PENDING,
+    };
 
     prismaMock.order.findFirst.mockResolvedValue(order);
     prismaMock.payment.findUnique.mockResolvedValue(null);
@@ -167,7 +171,7 @@ describe('PaymentsService', () => {
 
     expect(stripeMock.paymentIntents.create).toHaveBeenCalledWith(
       {
-        amount: Math.round(order.totalAmount * 100),
+        amount: order.totalAmount.mul(100).toDecimalPlaces(0).toNumber(),
         currency: 'brl',
         automatic_payment_methods: {
           enabled: true,
@@ -185,7 +189,7 @@ describe('PaymentsService', () => {
       data: {
         orderId: 'order-1',
         stripePaymentIntentId: 'pi_new',
-        amount: 42,
+        amount: new Prisma.Decimal(42),
       },
     });
     expect(result).toEqual({
@@ -194,8 +198,8 @@ describe('PaymentsService', () => {
     });
   });
 
-  it('deve converter valores decimais para centavos com Math.round', async () => {
-    const order = { id: 'order-1', totalAmount: 19.995, status: OrderStatus.PENDING };
+  it('deve converter valores decimais para centavos com precisão', async () => {
+    const order = { id: 'order-1', totalAmount: new Prisma.Decimal(19.995), status: OrderStatus.PENDING };
 
     prismaMock.order.findFirst.mockResolvedValue(order);
     prismaMock.payment.findUnique.mockResolvedValue(null);
@@ -222,7 +226,7 @@ describe('PaymentsService', () => {
 
     prismaMock.order.findFirst.mockResolvedValue({
       id: 'order-1',
-      totalAmount: 42,
+      totalAmount: new Prisma.Decimal(42),
       status: OrderStatus.PENDING,
     });
     prismaMock.payment.findUnique.mockResolvedValue(null);
@@ -740,7 +744,7 @@ describe('PaymentsService', () => {
     prismaMock.order.findFirst.mockResolvedValue({
       id: 'order-1',
       customerId: 'customer-1',
-      totalAmount: 49.9,
+      totalAmount: new Prisma.Decimal(42),
       status: OrderStatus.CONFIRMED,
     });
 

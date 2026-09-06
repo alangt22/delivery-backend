@@ -59,7 +59,7 @@ export class PaymentsService {
 
         const paymentIntent = await this.stripe.paymentIntents.create(
             {
-                amount: Math.round(Number(order.totalAmount) * 100),
+                amount: order.totalAmount.mul(100).toDecimalPlaces(0).toNumber(),
                 currency: 'brl',
                 automatic_payment_methods: {
                     enabled: true,
