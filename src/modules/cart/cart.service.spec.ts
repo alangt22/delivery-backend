@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, RestaurantStatus, Prisma } from '@prisma/client';
 import { AddressesService } from '../addresses/address.service';
 import { ProductsService } from '../products/products.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -19,6 +19,7 @@ describe('CartService', () => {
 
   const userId = 'user-1';
   const addressId = 'address-1';
+  const decimal = (value: number) => new Prisma.Decimal(value);
 
   const address = {
     id: addressId,
@@ -36,17 +37,24 @@ describe('CartService', () => {
     id: 'cart-1',
     userId,
     restaurantId: 'restaurant-1',
-    items,
+    items: items.map((item) => ({
+      ...item,
+      unitPrice:
+        item.unitPrice instanceof Prisma.Decimal
+          ? item.unitPrice
+          : decimal(item.unitPrice),
+    })),
   });
 
   const createProduct = (overrides = {}) => ({
     id: 'product-1',
     name: 'Pizza',
-    price: 25,
+    price: decimal(25),
     isAvailable: true,
     category: {
       restaurant: {
         id: 'restaurant-1',
+        status: RestaurantStatus.APPROVED,
       },
     },
     ...overrides,
@@ -54,6 +62,9 @@ describe('CartService', () => {
 
   beforeEach(async () => {
     transactionMock = {
+      cart: {
+        findUnique: jest.fn(),
+      },
       order: {
         create: jest.fn(),
       },
@@ -119,14 +130,14 @@ describe('CartService', () => {
 
   it('deve criar pedido, itens e limpar o carrinho dentro da transação', async () => {
     const cart = createCart([
-      { productId: 'product-1', quantity: 2, unitPrice: 25 },
-      { productId: 'product-2', quantity: 1, unitPrice: 10 },
+      { productId: 'product-1', quantity: 2, unitPrice: decimal(25) },
+      { productId: 'product-2', quantity: 1, unitPrice: decimal(10) },
     ]);
     const productOne = createProduct();
     const productTwo = createProduct({
       id: 'product-2',
       name: 'Refrigerante',
-      price: 10,
+      price: decimal(10),
     });
     const createdOrder = { id: 'order-1' };
     const orderDetails = { id: 'order-1', items: [], restaurant: {}, address };
@@ -135,6 +146,7 @@ describe('CartService', () => {
     prismaMock.cart.findUnique.mockResolvedValue(cart);
     addressesServiceMock.findById.mockResolvedValue(address);
     prismaMock.product.findMany.mockResolvedValue([productOne, productTwo]);
+    transactionMock.cart.findUnique.mockResolvedValue(cart);
     transactionMock.order.create.mockImplementation(async () => {
       operations.push('order.create');
       return createdOrder;
@@ -171,7 +183,7 @@ describe('CartService', () => {
         addressState: address.state,
         addressZipCode: address.zipCode,
         addressComplement: address.complement,
-        totalAmount: 60,
+        totalAmount: decimal(60),
         status: OrderStatus.PENDING,
       },
     });
@@ -182,14 +194,14 @@ describe('CartService', () => {
           productId: 'product-1',
           productName: 'Pizza',
           quantity: 2,
-          unitPrice: 25,
+          unitPrice: decimal(25),
         },
         {
           orderId: 'order-1',
           productId: 'product-2',
           productName: 'Refrigerante',
           quantity: 1,
-          unitPrice: 10,
+          unitPrice: decimal(10),
         },
       ],
     });
@@ -210,13 +222,14 @@ describe('CartService', () => {
 
   it('deve usar o preço atual quando houver alteração aceita pelo cliente', async () => {
     const cart = createCart([
-      { productId: 'product-1', quantity: 2, unitPrice: 20 },
+      { productId: 'product-1', quantity: 2, unitPrice: decimal(20) },
     ]);
-    const product = createProduct({ price: 25 });
+    const product = createProduct({ price: decimal(25) });
 
     prismaMock.cart.findUnique.mockResolvedValue(cart);
     addressesServiceMock.findById.mockResolvedValue(address);
     prismaMock.product.findMany.mockResolvedValue([product]);
+    transactionMock.cart.findUnique.mockResolvedValue(cart);
     transactionMock.order.create.mockResolvedValue({ id: 'order-1' });
     prismaMock.order.findUnique.mockResolvedValue({ id: 'order-1' });
 
@@ -224,14 +237,14 @@ describe('CartService', () => {
 
     expect(transactionMock.order.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ totalAmount: 50 }),
+        data: expect.objectContaining({ totalAmount: decimal(50) }),
       }),
     );
     expect(transactionMock.orderItem.createMany).toHaveBeenCalledWith({
       data: [
         expect.objectContaining({
           productId: 'product-1',
-          unitPrice: 25,
+          unitPrice: decimal(25),
           quantity: 2,
         }),
       ],
@@ -264,7 +277,7 @@ describe('CartService', () => {
 
   it('deve propagar erro do endereço sem iniciar transação', async () => {
     prismaMock.cart.findUnique.mockResolvedValue(
-      createCart([{ productId: 'product-1', quantity: 1, unitPrice: 25 }]),
+      createCart([{ productId: 'product-1', quantity: 1, unitPrice: decimal(25) }]),
     );
     addressesServiceMock.findById.mockRejectedValue(new NotFoundException());
 
@@ -278,7 +291,7 @@ describe('CartService', () => {
 
   it('deve lançar erro quando algum produto do carrinho não é encontrado', async () => {
     prismaMock.cart.findUnique.mockResolvedValue(
-      createCart([{ productId: 'product-1', quantity: 1, unitPrice: 25 }]),
+      createCart([{ productId: 'product-1', quantity: 1, unitPrice: decimal(25) }]),
     );
     addressesServiceMock.findById.mockResolvedValue(address);
     prismaMock.product.findMany.mockResolvedValue([]);
@@ -292,7 +305,7 @@ describe('CartService', () => {
 
   it('deve lançar erro quando algum produto está indisponível', async () => {
     prismaMock.cart.findUnique.mockResolvedValue(
-      createCart([{ productId: 'product-1', quantity: 1, unitPrice: 25 }]),
+      createCart([{ productId: 'product-1', quantity: 1, unitPrice: decimal(25) }]),
     );
     addressesServiceMock.findById.mockResolvedValue(address);
     prismaMock.product.findMany.mockResolvedValue([
@@ -308,7 +321,7 @@ describe('CartService', () => {
 
   it('deve lançar erro quando algum produto pertence a outro restaurante', async () => {
     prismaMock.cart.findUnique.mockResolvedValue(
-      createCart([{ productId: 'product-1', quantity: 1, unitPrice: 25 }]),
+      createCart([{ productId: 'product-1', quantity: 1, unitPrice: decimal(25) }]),
     );
     addressesServiceMock.findById.mockResolvedValue(address);
     prismaMock.product.findMany.mockResolvedValue([
@@ -330,10 +343,10 @@ describe('CartService', () => {
 
   it('deve informar alteração de preço sem iniciar transação quando o cliente não aceita', async () => {
     prismaMock.cart.findUnique.mockResolvedValue(
-      createCart([{ productId: 'product-1', quantity: 1, unitPrice: 20 }]),
+      createCart([{ productId: 'product-1', quantity: 1, unitPrice: decimal(20) }]),
     );
     addressesServiceMock.findById.mockResolvedValue(address);
-    prismaMock.product.findMany.mockResolvedValue([createProduct({ price: 25 })]);
+    prismaMock.product.findMany.mockResolvedValue([createProduct({ price: decimal(25) })]);
 
     await expect(service.checkout(userId, addressId, false)).rejects.toMatchObject({
       response: {
@@ -343,8 +356,8 @@ describe('CartService', () => {
           {
             productId: 'product-1',
             productName: 'Pizza',
-            oldPrice: 20,
-            newPrice: 25,
+            oldPrice: decimal(20),
+            newPrice: decimal(25),
           },
         ],
       },
@@ -358,10 +371,10 @@ describe('CartService', () => {
 
   it('deve criar uma ConflictException quando há alteração de preço sem aceite', async () => {
     prismaMock.cart.findUnique.mockResolvedValue(
-      createCart([{ productId: 'product-1', quantity: 1, unitPrice: 20 }]),
+      createCart([{ productId: 'product-1', quantity: 1, unitPrice: decimal(20) }]),
     );
     addressesServiceMock.findById.mockResolvedValue(address);
-    prismaMock.product.findMany.mockResolvedValue([createProduct({ price: 25 })]);
+    prismaMock.product.findMany.mockResolvedValue([createProduct({ price: decimal(25) })]);
 
     await expect(service.checkout(userId, addressId, false)).rejects.toThrow(
       ConflictException,
@@ -373,19 +386,19 @@ describe('CartService', () => {
       {
         productId: 'product-1',
         quantity: 2,
-        unitPrice: 20,
+        unitPrice: decimal(20),
       },
       {
         productId: 'product-2',
         quantity: 1,
-        unitPrice: 10,
+        unitPrice: decimal(10),
       },
     ]);
 
     const productOne = createProduct({
       id: 'product-1',
       name: 'Pizza',
-      price: 25,
+      price: decimal(25),
     });
 
     const productTwo = createProduct({
@@ -411,13 +424,13 @@ describe('CartService', () => {
           {
             productId: 'product-1',
             productName: 'Pizza',
-            oldPrice: 20,
-            newPrice: 25,
+            oldPrice: decimal(20),
+            newPrice: decimal(25),
           },
           {
             productId: 'product-2',
             productName: 'Refrigerante',
-            oldPrice: 10,
+            oldPrice: decimal(10),
             newPrice: 12,
           },
         ],
@@ -431,7 +444,7 @@ describe('CartService', () => {
     prismaMock.cart.findUnique.mockResolvedValue(null);
 
     const product = createProduct({
-      price: 25,
+      price: decimal(25),
       category: {
         restaurantId: 'restaurant-1',
       },
@@ -452,7 +465,7 @@ describe('CartService', () => {
       cartId: 'cart-1',
       productId: 'product-1',
       quantity: 1,
-      unitPrice: 25,
+      unitPrice: decimal(25),
     });
 
     prismaMock.cart.findUnique
@@ -465,11 +478,11 @@ describe('CartService', () => {
           {
             productId: 'product-1',
             quantity: 1,
-            unitPrice: 25,
+            unitPrice: decimal(25),
             product: {
               id: 'product-1',
               name: 'Produto 1',
-              price: 25,
+              price: decimal(25),
             },
           },
         ],
@@ -497,7 +510,7 @@ describe('CartService', () => {
         cartId: 'cart-1',
         productId: 'product-1',
         quantity: 1,
-        unitPrice: 25,
+        unitPrice: decimal(25),
       },
     });
 
@@ -516,7 +529,7 @@ describe('CartService', () => {
     };
 
     const product = createProduct({
-      price: 30,
+      price: decimal(30),
       category: {
         restaurantId: 'restaurant-1',
       },
@@ -530,11 +543,11 @@ describe('CartService', () => {
           {
             productId: 'product-1',
             quantity: 1,
-            unitPrice: 30,
+            unitPrice: decimal(30),
             product: {
               id: 'product-1',
               name: 'Produto 1',
-              price: 30,
+              price: decimal(30),
             },
           },
         ],
@@ -549,7 +562,7 @@ describe('CartService', () => {
       cartId: 'cart-1',
       productId: 'product-1',
       quantity: 1,
-      unitPrice: 30,
+      unitPrice: decimal(30),
     });
 
     const result = await service.addProduct(
@@ -578,7 +591,7 @@ describe('CartService', () => {
         cartId: 'cart-1',
         productId: 'product-1',
         quantity: 1,
-        unitPrice: 30,
+        unitPrice: decimal(30),
       },
     });
 
@@ -597,7 +610,7 @@ describe('CartService', () => {
     };
 
     const product = createProduct({
-      price: 30,
+      price: decimal(30),
       category: {
         restaurantId: 'restaurant-1',
       },
@@ -611,11 +624,11 @@ describe('CartService', () => {
           {
             productId: 'product-1',
             quantity: 8,
-            unitPrice: 30,
+            unitPrice: decimal(30),
             product: {
               id: 'product-1',
               name: 'Produto 1',
-              price: 30,
+              price: decimal(30),
             },
           },
         ],
@@ -628,7 +641,7 @@ describe('CartService', () => {
       cartId: 'cart-1',
       productId: 'product-1',
       quantity: 5,
-      unitPrice: 30,
+      unitPrice: decimal(30),
     });
 
     prismaMock.cartItem.update.mockResolvedValue({
@@ -636,7 +649,7 @@ describe('CartService', () => {
       cartId: 'cart-1',
       productId: 'product-1',
       quantity: 8,
-      unitPrice: 30,
+      unitPrice: decimal(30),
     });
 
     const result = await service.addProduct(
@@ -673,7 +686,7 @@ describe('CartService', () => {
     };
 
     const product = createProduct({
-      price: 30,
+      price: decimal(30),
       category: {
         restaurantId: 'restaurant-2',
       },
@@ -732,11 +745,11 @@ describe('CartService', () => {
           {
             productId: 'product-1',
             quantity: 2,
-            unitPrice: 25,
+            unitPrice: decimal(25),
             product: {
               id: 'product-1',
               name: 'Produto 1',
-              price: 25,
+              price: decimal(25),
             },
           },
         ],
@@ -772,9 +785,8 @@ describe('CartService', () => {
           productId: 'product-1',
           productName: 'Produto 1',
           quantity: 2,
-          unitPrice: 25,
+          unitPrice: decimal(25),
           subtotal: 50,
-          currentPrice: 25,
           priceChanged: false,
         },
       ],
@@ -796,11 +808,11 @@ describe('CartService', () => {
           {
             productId: 'product-1',
             quantity: 3,
-            unitPrice: 25,
+            unitPrice: decimal(25),
             product: {
               id: 'product-1',
               name: 'Produto 1',
-              price: 25,
+              price: decimal(25),
             },
           },
         ],
@@ -811,7 +823,7 @@ describe('CartService', () => {
       cartId: 'cart-1',
       productId: 'product-1',
       quantity: 1,
-      unitPrice: 25,
+      unitPrice: decimal(25),
     });
 
     prismaMock.cartItem.update.mockResolvedValue({
@@ -819,7 +831,7 @@ describe('CartService', () => {
       cartId: 'cart-1',
       productId: 'product-1',
       quantity: 3,
-      unitPrice: 25,
+      unitPrice: decimal(25),
     });
 
     const result = await service.updateItemQuantity(
@@ -887,11 +899,11 @@ describe('CartService', () => {
           {
             productId: 'product-1',
             quantity: 3,
-            unitPrice: 25,
+            unitPrice: decimal(25),
             product: {
               id: 'product-1',
               name: 'Produto 1',
-              price: 25,
+              price: decimal(25),
             },
           },
         ],
@@ -902,7 +914,7 @@ describe('CartService', () => {
       cartId: 'cart-1',
       productId: 'product-1',
       quantity: 1,
-      unitPrice: 25,
+      unitPrice: decimal(25),
     });
 
     prismaMock.cartItem.delete.mockResolvedValue({
@@ -910,7 +922,7 @@ describe('CartService', () => {
       cartId: 'cart-1',
       productId: 'product-1',
       quantity: 1,
-      unitPrice: 25,
+      unitPrice: decimal(25),
     });
 
     const result = await service.removeCartItem(userId, 'cart-item-1');
@@ -1029,11 +1041,11 @@ describe('CartService', () => {
           {
             productId: 'product-1',
             quantity: 2,
-            unitPrice: 20,
+            unitPrice: decimal(20),
             product: {
               id: 'product-1',
               name: 'Produto 1',
-              price: 25,
+              price: decimal(25),
             },
           },
         ],
@@ -1050,9 +1062,8 @@ describe('CartService', () => {
           productId: 'product-1',
           productName: 'Produto 1',
           quantity: 2,
-          unitPrice: 20,
+          unitPrice: decimal(20),
           subtotal: 40,
-          currentPrice: 25,
           priceChanged: true,
         },
       ],

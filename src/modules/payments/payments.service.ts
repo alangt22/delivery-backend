@@ -1,15 +1,23 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+    BadRequestException,
+    Injectable,
+    Logger,
+    NotFoundException,
+} from '@nestjs/common';
+
 import Stripe from 'stripe';
+
 import { PrismaService } from 'src/prisma/prisma.service';
-import { PaymentStatus } from '@prisma/client';
+
+import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+
 
 @Injectable()
 export class PaymentsService {
-    private stripe: Stripe;
+    private readonly stripe: Stripe;
+    private readonly logger = new Logger(PaymentsService.name);
 
-    constructor(
-        private prisma: PrismaService
-    ) {
+    constructor(private prisma: PrismaService) {
         this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
     }
 
@@ -20,8 +28,15 @@ export class PaymentsService {
                 customerId,
             },
         });
+
         if (!order) {
             throw new NotFoundException('Pedido nao encontrado');
+        }
+
+        if (order.status !== OrderStatus.PENDING) {
+            throw new BadRequestException(
+                'Só é possível realizar o pagamento de pedidos pendentes',
+            );
         }
 
         const existingPayment = await this.prisma.payment.findUnique({
@@ -29,10 +44,12 @@ export class PaymentsService {
                 orderId,
             },
         });
+
         if (existingPayment) {
-            const paymentIntent = await this.stripe.paymentIntents.retrieve(
-                existingPayment.stripePaymentIntentId,
-            );
+            const paymentIntent =
+                await this.stripe.paymentIntents.retrieve(
+                    existingPayment.stripePaymentIntentId,
+                );
 
             return {
                 paymentId: existingPayment.id,
@@ -40,28 +57,73 @@ export class PaymentsService {
             };
         }
 
-        const paymentIntent = await this.stripe.paymentIntents.create({
-            amount: Math.round(order.totalAmount * 100),
-            currency: 'brl',
-            automatic_payment_methods: {
-                enabled: true,
-                allow_redirects: 'never',
+        const paymentIntent = await this.stripe.paymentIntents.create(
+            {
+                amount: Math.round(Number(order.totalAmount) * 100),
+                currency: 'brl',
+                automatic_payment_methods: {
+                    enabled: true,
+                    allow_redirects: 'never',
+                },
+                metadata: {
+                    orderId: order.id,
+                },
             },
-            metadata: { orderId: order.id },
-        });
+            {
+                idempotencyKey: `order-payment-${order.id}`,
+            },
+        );
 
-        const payment = await this.prisma.payment.create({
-            data: {
-                orderId: order.id,
-                stripePaymentIntentId: paymentIntent.id,
-                amount: order.totalAmount,
-            },
-        });
+        let payment;
+
+        try {
+            payment = await this.prisma.payment.create({
+                data: {
+                    orderId: order.id,
+                    stripePaymentIntentId: paymentIntent.id,
+                    amount: order.totalAmount,
+                },
+            });
+        } catch (error) {
+            if (this.isPrismaUniqueConstraintError(error)) {
+                const existingPayment = await this.prisma.payment.findUnique({
+                    where: {
+                        orderId,
+                    },
+                });
+
+                if (!existingPayment) {
+                    throw error;
+                }
+
+                const existingPaymentIntent =
+                    await this.stripe.paymentIntents.retrieve(
+                        existingPayment.stripePaymentIntentId,
+                    );
+
+                return {
+                    paymentId: existingPayment.id,
+                    clientSecret: existingPaymentIntent.client_secret,
+                };
+            }
+
+            throw error;
+        }
 
         return {
             paymentId: payment.id,
             clientSecret: paymentIntent.client_secret,
         };
+    }
+
+    private isPrismaUniqueConstraintError(error: unknown): boolean {
+        return (
+            error instanceof Prisma.PrismaClientKnownRequestError ||
+            (typeof error === 'object' &&
+                error !== null &&
+                'code' in error &&
+                (error as { code?: string }).code === 'P2002')
+        );
     }
 
     async handleWebhook(req: any) {
@@ -79,12 +141,28 @@ export class PaymentsService {
             process.env.STRIPE_WEBHOOK_SECRET!,
         );
 
-        console.log('Webhook recebido:', event.type);
+        this.logger.log(`Webhook recebido: ${event.type}`);
+
+        /*
+         * Verifica se este evento Stripe já foi processado.
+         *
+         * O eventId agora fica em uma tabela própria (StripeEvent),
+         * permitindo guardar o histórico completo dos eventos.
+         */
+        const existingEvent = await this.prisma.stripeEvent.findUnique({
+            where: {
+                eventId: event.id,
+            },
+        });
+
+        if (existingEvent) {
+            return { received: true };
+        }
 
         if (event.type === 'payment_intent.succeeded') {
             const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
-            console.log('PaymentIntent:', paymentIntent.id);
+            this.logger.log(`PaymentIntent: ${paymentIntent.id}`);
 
             const payment = await this.prisma.payment.findUnique({
                 where: {
@@ -96,12 +174,22 @@ export class PaymentsService {
                 throw new NotFoundException('Pagamento não encontrado.');
             }
 
-            if (payment.stripeEventId === event.id) {
+            // Pagamento já finalizado. Não altera novamente o estado.
+            if (payment.status === PaymentStatus.SUCCEEDED) {
                 return { received: true };
             }
 
+            const order = await this.prisma.order.findFirst({
+                where: {
+                    id: payment.orderId,
+                },
+            });
 
-            await this.prisma.$transaction([
+            if (!order) {
+                throw new NotFoundException('Pedido não encontrado.');
+            }
+
+            const operations: any[] = [
                 this.prisma.payment.update({
                     where: {
                         id: payment.id,
@@ -112,15 +200,38 @@ export class PaymentsService {
                     },
                 }),
 
-                this.prisma.order.update({
-                    where: {
-                        id: payment.orderId,
-                    },
+                this.prisma.stripeEvent.create({
                     data: {
-                        status: 'CONFIRMED',
+                        eventId: event.id,
+                        type: event.type,
+                        paymentId: payment.id,
                     },
                 }),
-            ]);
+            ];
+
+            // Só confirma pedido que ainda está PENDING.
+            if (order.status === OrderStatus.PENDING) {
+                operations.push(
+                    this.prisma.order.update({
+                        where: {
+                            id: payment.orderId,
+                        },
+                        data: {
+                            status: OrderStatus.CONFIRMED,
+                        },
+                    }),
+                );
+            }
+
+            try {
+                await this.prisma.$transaction(operations);
+            } catch (error) {
+                if (this.isPrismaUniqueConstraintError(error)) {
+                    return { received: true };
+                }
+
+                throw error;
+            }
         }
 
         if (event.type === 'payment_intent.payment_failed') {
@@ -136,19 +247,41 @@ export class PaymentsService {
                 throw new NotFoundException('Pagamento não encontrado.');
             }
 
-            if (payment.stripeEventId === event.id) {
+            // Não permite estados finais serem alterados.
+            if (
+                payment.status === PaymentStatus.SUCCEEDED ||
+                payment.status === PaymentStatus.FAILED
+            ) {
                 return { received: true };
             }
 
-            await this.prisma.payment.update({
-                where: {
-                    id: payment.id,
-                },
-                data: {
-                    status: PaymentStatus.FAILED,
-                    stripeEventId: event.id,
-                },
-            });
+            try {
+                await this.prisma.$transaction([
+                    this.prisma.payment.update({
+                        where: {
+                            id: payment.id,
+                        },
+                        data: {
+                            status: PaymentStatus.FAILED,
+                            stripeEventId: event.id,
+                        },
+                    }),
+
+                    this.prisma.stripeEvent.create({
+                        data: {
+                            eventId: event.id,
+                            type: event.type,
+                            paymentId: payment.id,
+                        },
+                    }),
+                ]);
+            } catch (error) {
+                if (this.isPrismaUniqueConstraintError(error)) {
+                    return { received: true };
+                }
+
+                throw error;
+            }
         }
 
         return { received: true };

@@ -48,49 +48,40 @@ describe('OrdersService', () => {
     expect(service).toBeDefined();
   });
 
-  it('deve atualizar um pedido de PENDING para CONFIRMED', async () => {
+  it('não deve permitir atualizar um pedido de PENDING para CONFIRMED manualmente', async () => {
     restaurantServiceMock.findById.mockResolvedValue({
       id: 'restaurant-1',
       ownerId: 'owner-1',
     });
+
     prismaMock.order.findFirst.mockResolvedValue({
       id: 'order-1',
       restaurantId: 'restaurant-1',
       status: OrderStatus.PENDING,
     });
-    prismaMock.order.update.mockResolvedValue({
-      id: 'order-1',
-      restaurantId: 'restaurant-1',
-      status: OrderStatus.CONFIRMED,
-    });
 
-    const result = await service.updateStatus(
-      'restaurant-1',
-      'order-1',
-      'owner-1',
-      { status: OrderStatus.CONFIRMED },
-    );
-    expect(result.id).toBe('order-1');
-    expect(result.restaurantId).toBe('restaurant-1');
-    expect(result.status).toBe(OrderStatus.CONFIRMED);
+    await expect(
+      service.updateStatus(
+        'restaurant-1',
+        'order-1',
+        'owner-1',
+        { status: OrderStatus.CONFIRMED },
+      ),
+    ).rejects.toThrow(BadRequestException);
+
     expect(prismaMock.order.findFirst).toHaveBeenCalledWith({
       where: {
         id: 'order-1',
         restaurantId: 'restaurant-1',
       },
     });
+
     expect(restaurantServiceMock.findById).toHaveBeenCalledWith(
       'restaurant-1',
       'owner-1',
     );
-    expect(prismaMock.order.update).toHaveBeenCalledWith({
-      where: {
-        id: 'order-1',
-      },
-      data: {
-        status: OrderStatus.CONFIRMED,
-      },
-    });
+
+    expect(prismaMock.order.update).not.toHaveBeenCalled();
   });
 
   it('deve atualizar um pedido de PENDING para CANCELLED', async () => {

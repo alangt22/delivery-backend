@@ -82,7 +82,6 @@ export class OrdersService {
     switch (currentStatus) {
       case OrderStatus.PENDING:
         if (
-          newStatus !== OrderStatus.CONFIRMED &&
           newStatus !== OrderStatus.CANCELLED
         ) {
           throw new BadRequestException(

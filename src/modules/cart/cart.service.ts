@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { ProductsService } from '../products/products.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AddressesService } from '../addresses/address.service';
-import { Cart, OrderStatus } from '@prisma/client';
+import { Cart, OrderStatus, Prisma } from '@prisma/client';
 @Injectable()
 export class CartService {
   constructor(
@@ -58,7 +58,7 @@ export class CartService {
     });
   }
 
-  private async createCartItem(cartId: string, productId: string, quantity: number, unitPrice: number) {
+  private async createCartItem(cartId: string, productId: string, quantity: number, unitPrice: Prisma.Decimal) {
     return this.prisma.cartItem.create({
       data: {
         cartId,
@@ -99,26 +99,26 @@ export class CartService {
     }
 
     const items = cart.items.map((item) => {
-      const subtotal = item.unitPrice * item.quantity;
-      const priceChanged = item.unitPrice !== item.product.price;
+      const subtotal = item.unitPrice.mul(item.quantity);
+      const priceChanged = !item.unitPrice.equals(item.product.price);
 
       return {
         productId: item.productId,
         productName: item.product.name,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        subtotal: Number(subtotal.toFixed(2)),
+        subtotal: subtotal.toNumber(),
         currentPrice: item.product.price,
         priceChanged,
       }
     });
 
-    const totalAmount = Number(
-      cart.items
-        .reduce((total, item) => {
-          return total + item.unitPrice * item.quantity;
-        }, 0).toFixed(2),
-    )
+    const totalAmount = cart.items
+      .reduce(
+        (total, item) => total.add(item.unitPrice.mul(item.quantity)),
+        new Prisma.Decimal(0),
+      )
+      .toNumber();
 
     return {
       id: cart.id,
@@ -273,6 +273,17 @@ export class CartService {
 
     if (
       products.some(
+        (product) =>
+          product.category.restaurant.status !== 'APPROVED',
+      )
+    ) {
+      throw new BadRequestException(
+        'O restaurante não está disponível para pedidos.',
+      );
+    }
+
+    if (
+      products.some(
         (product) => product.category.restaurant.id !== cart.restaurantId,
       )
     ) {
@@ -291,7 +302,7 @@ export class CartService {
           return null;
         }
 
-        if (item.unitPrice !== product.price) {
+        if (!item.unitPrice.equals(product.price)) {
           return {
             productId: product.id,
             productName: product.name,
@@ -324,9 +335,11 @@ export class CartService {
         );
       }
       // descobrir unitPrice
-      const unitPrice = item.unitPrice !== product.price ? product.price : item.unitPrice;
-      // subtoal
-      const subtotal = unitPrice * item.quantity;
+      const unitPrice = !item.unitPrice.equals(product.price)
+        ? product.price
+        : item.unitPrice;
+
+      const subtotal = unitPrice.mul(item.quantity);
       // retornar os dados
       return {
         productId: item.productId,
@@ -338,49 +351,90 @@ export class CartService {
     });
 
     const totalAmount = orderItemsData.reduce(
-      (total, item) => total + item.subtotal,
-      0,
+      (total, item) => total.add(item.subtotal),
+      new Prisma.Decimal(0),
     );
 
-    const order = await this.prisma.$transaction(async (tx) => {
-      const order = await tx.order.create({
-        data: {
-          customerId: userId,
-          restaurantId: cart.restaurantId,
+    let order;
 
-          addressId: address.id,
-          addressStreet: address.street,
-          addressNumber: address.number,
-          addressDistrict: address.district,
-          addressCity: address.city,
-          addressState: address.state,
-          addressZipCode: address.zipCode,
-          addressComplement: address.complement,
+    try {
+      order = await this.prisma.$transaction(
+        async (tx) => {
+          // Recarrega o carrinho DENTRO da transação.
+          // Isso evita trabalhar com uma leitura antiga.
+          const currentCart = await tx.cart.findUnique({
+            where: {
+              id: cart.id,
+            },
+            include: {
+              items: true,
+            },
+          });
 
-          totalAmount,
-          status: OrderStatus.PENDING,
+          if (!currentCart) {
+            throw new NotFoundException('Carrinho não encontrado.');
+          }
+
+          // Se outro checkout já processou o carrinho,
+          // não existem mais itens para processar.
+          if (currentCart.items.length === 0) {
+            throw new ConflictException(
+              'O carrinho já foi finalizado.',
+            );
+          }
+
+          const order = await tx.order.create({
+            data: {
+              customerId: userId,
+              restaurantId: currentCart.restaurantId,
+              addressId: address.id,
+              addressStreet: address.street,
+              addressNumber: address.number,
+              addressDistrict: address.district,
+              addressCity: address.city,
+              addressState: address.state,
+              addressZipCode: address.zipCode,
+              addressComplement: address.complement,
+              totalAmount,
+              status: OrderStatus.PENDING,
+            },
+          });
+
+          await tx.orderItem.createMany({
+            data: orderItemsData.map((item) => ({
+              orderId: order.id,
+              productId: item.productId,
+              productName: item.productName,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+            })),
+          });
+
+          await tx.cartItem.deleteMany({
+            where: {
+              cartId: currentCart.id,
+            },
+          });
+
+          return order;
         },
-      });
-
-      await tx.orderItem.createMany({
-        data: orderItemsData.map((item) => ({
-          orderId: order.id,
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-        })),
-      });
-      
-
-      await tx.cartItem.deleteMany({
-        where: {
-          cartId: cart.id,
+        {
+          isolationLevel: 'Serializable',
         },
-      });
+      );
+    } catch (error) {
+      if (
+        error instanceof ConflictException ||
+        (error instanceof Error &&
+          error.message.includes('Transaction failed due to a write conflict'))
+      ) {
+        throw new ConflictException(
+          'O checkout já está sendo processado. Tente novamente.',
+        );
+      }
 
-      return order;
-    });
+      throw error;
+    }
 
 
     return this.prisma.order.findUnique({

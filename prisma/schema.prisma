@@ -117,7 +117,7 @@ model Product {
 
   description String?
 
-  price Float
+  price Decimal @db.Decimal(10, 2)
 
   image String?
   imagePublicId String?
@@ -156,7 +156,7 @@ model Order {
   addressZipCode    String
   addressComplement String?
 
-  totalAmount Float
+  totalAmount Decimal @db.Decimal(10, 2)
 
   status OrderStatus @default(PENDING)
   payment Payment?
@@ -180,7 +180,7 @@ model OrderItem {
 
   productName String
 
-  unitPrice Float
+  unitPrice Decimal @db.Decimal(10, 2)
 
   quantity Int
 
@@ -216,7 +216,7 @@ model CartItem {
   product   Product @relation(fields: [productId], references: [id])
 
   quantity  Int   @default(1)
-  unitPrice Float
+  unitPrice Decimal @db.Decimal(10, 2)
 
   createdAt DateTime @default(now())
 
@@ -233,13 +233,29 @@ model Payment {
   stripePaymentIntentId String        @unique
   stripeEventId String? @unique
   
-  amount                Float
+  amount Decimal @db.Decimal(10, 2)
   status                PaymentStatus @default(PENDING)
+
+  stripeEvents StripeEvent[]
 
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 
   @@map("payments")
+}
+
+model StripeEvent {
+  id        String   @id @default(uuid())
+  eventId   String   @unique
+  type      String
+  paymentId String
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@map("stripe_events")
 }
 
 enum PaymentStatus {

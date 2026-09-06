@@ -14,6 +14,7 @@ export class RegisterDto {
 
 
   @ApiProperty()
+  @IsString()
   @MinLength(6, {
     message: 'A senha precisa ter pelo menos 6 caracteres',
   })
