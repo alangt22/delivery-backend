@@ -24,7 +24,7 @@ import {
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('register')
   @ApiOperation({
@@ -50,7 +50,7 @@ export class AuthController {
   @Post('login')
   @ApiOperation({
     summary: 'Login com e-mail e senha',
-    description: 'Autentica o usuário e retorna um JWT.',
+    description: 'Autentica o usuário e cria um cookie de autenticação.',
   })
   @ApiResponse({
     status: 200,
@@ -64,8 +64,22 @@ export class AuthController {
     status: 400,
     description: 'Dados enviados são inválidos.',
   })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(dto);
+
+    res.cookie('access_token', result.access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return {
+      message: 'Login realizado com sucesso.',
+    };
   }
 
   @Get('me')
@@ -98,24 +112,32 @@ export class AuthController {
     status: 302,
     description: 'Redirecionamento para o Google OAuth.',
   })
-  googleAuth() {}
+  googleAuth() { }
 
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   @ApiOperation({
     summary: 'Callback do Google OAuth',
     description:
-      'Recebe o retorno da autenticação do Google e redireciona o usuário para o frontend com o JWT.',
+      'Recebe o retorno da autenticação do Google, cria um cookie de autenticação e redireciona para o frontend.',
   })
   @ApiResponse({
     status: 302,
     description: 'Redirecionamento para o frontend após autenticação.',
   })
-  googleCallback(@Req() req, @Res() res: Response) {
+  googleCallback(
+    @Req() req,
+    @Res() res: Response,
+  ) {
     const { access_token } = req.user;
-    
-    return res.redirect(
-      `${process.env.FRONTEND_URL}/auth/callback?token=${access_token}`,
-    );
+
+    res.cookie('access_token', access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.redirect(process.env.FRONTEND_URL!);
   }
 }

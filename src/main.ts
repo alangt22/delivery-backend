@@ -4,10 +4,13 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
   });
+  app.use(cookieParser());
 
   app.use(helmet());
 

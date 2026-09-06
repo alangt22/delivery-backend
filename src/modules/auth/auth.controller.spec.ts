@@ -73,10 +73,26 @@ describe('AuthController', () => {
 
     authServiceMock.login.mockResolvedValue(response);
 
-    const result = await controller.login(dto);
+    const res = {
+      cookie: jest.fn(),
+    } as any;
+
+    const result = await controller.login(dto, res);
 
     expect(authServiceMock.login).toHaveBeenCalledWith(dto);
-    expect(result).toEqual(response);
+
+    expect(res.cookie).toHaveBeenCalledWith(
+      'access_token',
+      'jwt-token',
+      expect.objectContaining({
+        httpOnly: true,
+        sameSite: 'lax',
+      }),
+    );
+
+    expect(result).toEqual({
+      message: 'Login realizado com sucesso.',
+    });
   });
 
   it('deve retornar o usuário autenticado sem passwordHash', () => {
@@ -137,13 +153,23 @@ describe('AuthController', () => {
     };
 
     const res = {
+      cookie: jest.fn(),
       redirect: jest.fn(),
     };
 
     controller.googleCallback(req, res as any);
 
+    expect(res.cookie).toHaveBeenCalledWith(
+      'access_token',
+      'jwt-token',
+      expect.objectContaining({
+        httpOnly: true,
+        sameSite: 'lax',
+      }),
+    );
+
     expect(res.redirect).toHaveBeenCalledWith(
-      'http://localhost:3001/auth/callback?token=jwt-token',
+      'http://localhost:3001',
     );
   });
 });

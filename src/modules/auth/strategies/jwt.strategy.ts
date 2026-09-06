@@ -4,7 +4,6 @@ import {
 } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
@@ -13,13 +12,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private prisma: PrismaService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        (request) => request?.cookies?.access_token,
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ]),
       ignoreExpiration: false,
       secretOrKey: process.env.JWT_SECRET,
     });
   }
 
-  // Valida o JWT, busca o usuário no banco e bloqueia acesso de contas bloqueadas.
   async validate(payload: any) {
     const user = await this.prisma.user.findUnique({
       where: {
