@@ -36,6 +36,10 @@ describe('PaymentsService', () => {
       paymentIntents: {
         retrieve: jest.fn(),
         create: jest.fn(),
+        cancel: jest.fn(),
+      },
+      refunds: {
+        create: jest.fn(),
       },
       webhooks: {
         constructEvent: jest.fn(),
@@ -989,5 +993,78 @@ describe('PaymentsService', () => {
     ).resolves.toEqual({
       received: true,
     });
+  });
+
+  it('deve cancelar o PaymentIntent quando o pagamento está PENDING', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      orderId: 'order-1',
+      stripePaymentIntentId: 'pi_pending',
+      status: PaymentStatus.PENDING,
+    });
+
+    stripeMock.paymentIntents.cancel.mockResolvedValue({
+      id: 'pi_pending',
+      status: 'canceled',
+    });
+
+    await service.cancelPaymentForOrder('order-1');
+
+    expect(prismaMock.payment.findUnique).toHaveBeenCalledWith({
+      where: {
+        orderId: 'order-1',
+      },
+    });
+
+    expect(stripeMock.paymentIntents.cancel).toHaveBeenCalledWith(
+      'pi_pending',
+    );
+
+    expect(stripeMock.refunds.create).not.toHaveBeenCalled();
+  });
+
+  it('deve criar refund quando o pagamento está SUCCEEDED', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      orderId: 'order-1',
+      stripePaymentIntentId: 'pi_succeeded',
+      status: PaymentStatus.SUCCEEDED,
+    });
+
+    stripeMock.refunds.create.mockResolvedValue({
+      id: 're_1',
+      status: 'succeeded',
+    });
+
+    await service.cancelPaymentForOrder('order-1');
+
+    expect(stripeMock.refunds.create).toHaveBeenCalledWith({
+      payment_intent: 'pi_succeeded',
+    });
+
+    expect(stripeMock.paymentIntents.cancel).not.toHaveBeenCalled();
+  });
+
+  it('não deve chamar o Stripe quando não existe pagamento', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue(null);
+
+    await service.cancelPaymentForOrder('order-1');
+
+    expect(stripeMock.paymentIntents.cancel).not.toHaveBeenCalled();
+    expect(stripeMock.refunds.create).not.toHaveBeenCalled();
+  });
+
+  it('não deve chamar o Stripe quando o pagamento está FAILED', async () => {
+    prismaMock.payment.findUnique.mockResolvedValue({
+      id: 'payment-1',
+      orderId: 'order-1',
+      stripePaymentIntentId: 'pi_failed',
+      status: PaymentStatus.FAILED,
+    });
+
+    await service.cancelPaymentForOrder('order-1');
+
+    expect(stripeMock.paymentIntents.cancel).not.toHaveBeenCalled();
+    expect(stripeMock.refunds.create).not.toHaveBeenCalled();
   });
 });

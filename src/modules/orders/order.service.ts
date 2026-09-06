@@ -7,12 +7,14 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { RestaurantsService } from '../restaurants/restaurants.service';
 import { UpdateOrderStatusDto } from './dto/update-order.dto';
 import { OrderStatus } from '@prisma/client/wasm';
+import { PaymentsService } from '../payments/payments.service';
 
 @Injectable()
 export class OrdersService {
   constructor(
     private prisma: PrismaService,
     private restaurantService: RestaurantsService,
+    private paymentsService: PaymentsService,
   ) { }
 
   async findMyOrders(customerId: string) {
@@ -142,6 +144,10 @@ export class OrdersService {
     }
 
     this.validateStatusTransition(order.status, dto.status);
+
+    if (dto.status === OrderStatus.CANCELLED) {
+      await this.paymentsService.cancelPaymentForOrder(orderId);
+    }
 
     return this.prisma.order.update({
       where: {

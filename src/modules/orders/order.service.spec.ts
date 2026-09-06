@@ -5,13 +5,17 @@ import { RestaurantsService } from '../restaurants/restaurants.service';
 import { OrderStatus } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common/exceptions/bad-request.exception';
 import { NotFoundException } from '@nestjs/common/exceptions/not-found.exception';
+import { PaymentsService } from '../payments/payments.service';
 
 describe('OrdersService', () => {
   let service: OrdersService;
   let prismaMock;
   let restaurantServiceMock;
 
-
+  const paymentsServiceMock = {
+    cancelPaymentForOrder: jest.fn(),
+  };
+  
   beforeEach(async () => {
     prismaMock = {
       order: {
@@ -37,6 +41,10 @@ describe('OrdersService', () => {
         {
           provide: RestaurantsService,
           useValue: restaurantServiceMock,
+        },
+        {
+          provide: PaymentsService,
+          useValue: paymentsServiceMock,
         },
       ],
     }).compile();
@@ -335,6 +343,37 @@ describe('OrdersService', () => {
         status: OrderStatus.DELIVERED,
       },
     });
+  });
+
+  it('deve cancelar o pagamento quando o pedido for cancelado', async () => {
+    const orderId = 'order-1';
+    const restaurantId = 'restaurant-1';
+    const ownerId = 'owner-1';
+
+    prismaMock.order.findFirst.mockResolvedValue({
+      id: orderId,
+      restaurantId,
+      status: OrderStatus.PENDING,
+    } as any);
+
+    prismaMock.order.update.mockResolvedValue({
+      id: orderId,
+      restaurantId,
+      status: OrderStatus.CANCELLED,
+    } as any);
+
+    await service.updateStatus(
+      restaurantId,
+      orderId,
+      ownerId,
+      {
+        status: OrderStatus.CANCELLED,
+      },
+    );
+
+    expect(
+      paymentsServiceMock.cancelPaymentForOrder,
+    ).toHaveBeenCalledWith(orderId);
   });
 
   it('deve lançar um erro bad request quando a transição de status PENDING para DELIVERED', async () => {

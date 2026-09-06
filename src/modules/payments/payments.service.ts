@@ -126,6 +126,33 @@ export class PaymentsService {
         );
     }
 
+    async cancelPaymentForOrder(orderId: string) {
+        const payment = await this.prisma.payment.findUnique({
+            where: {
+                orderId,
+            },
+        });
+
+        // Pedido pode ser cancelado sem nunca ter iniciado pagamento.
+        if (!payment) {
+            return;
+        }
+
+        if (payment.status === PaymentStatus.SUCCEEDED) {
+            await this.stripe.refunds.create({
+                payment_intent: payment.stripePaymentIntentId,
+            });
+
+            return;
+        }
+
+        if (payment.status === PaymentStatus.PENDING) {
+            await this.stripe.paymentIntents.cancel(
+                payment.stripePaymentIntentId,
+            );
+        }
+    }
+
     async handleWebhook(req: any) {
         const signature = req.headers['stripe-signature'];
 
