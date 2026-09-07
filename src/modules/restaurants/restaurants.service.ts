@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
@@ -276,6 +276,43 @@ export class RestaurantsService {
 
   async remove(id: string, ownerId: string) {
     const restaurant = await this.findById(id, ownerId);
+
+    const [orderCount, cartCount, categoryCount] =
+      await Promise.all([
+        this.prisma.order.count({
+          where: {
+            restaurantId: id,
+          },
+        }),
+        this.prisma.cart.count({
+          where: {
+            restaurantId: id,
+          },
+        }),
+        this.prisma.category.count({
+          where: {
+            restaurantId: id,
+          },
+        }),
+      ]);
+
+    if (orderCount > 0) {
+      throw new ConflictException(
+        'Não é possível remover o restaurante porque existem pedidos associados a ele.',
+      );
+    }
+
+    if (cartCount > 0) {
+      throw new ConflictException(
+        'Não é possível remover o restaurante porque existem carrinhos associados a ele.',
+      );
+    }
+
+    if (categoryCount > 0) {
+      throw new ConflictException(
+        'Não é possível remover o restaurante porque existem categorias associadas a ele.',
+      );
+    }
 
     await this.prisma.restaurant.delete({
       where: {

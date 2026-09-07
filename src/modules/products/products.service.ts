@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CategoriesService } from '../categories/categories.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -11,7 +11,7 @@ export class ProductsService {
     private prisma: PrismaService,
     private categoriesService: CategoriesService,
     private cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
   async create(
     dto: CreateProductDto,
@@ -208,6 +208,32 @@ export class ProductsService {
       ownerId,
     );
 
+    const [orderItemCount, cartItemCount] =
+      await Promise.all([
+        this.prisma.orderItem.count({
+          where: {
+            productId,
+          },
+        }),
+        this.prisma.cartItem.count({
+          where: {
+            productId,
+          },
+        }),
+      ]);
+
+    if (orderItemCount > 0) {
+      throw new ConflictException(
+        'Não é possível excluir o produto porque ele possui itens em pedidos.',
+      );
+    }
+
+    if (cartItemCount > 0) {
+      throw new ConflictException(
+        'Não é possível excluir o produto porque ele está presente em carrinhos.',
+      );
+    }
+
     await this.prisma.product.delete({
       where: {
         id: productId,
@@ -215,14 +241,15 @@ export class ProductsService {
     });
 
     if (product.imagePublicId) {
-      await this.cloudinaryService.deleteImage(product.imagePublicId);
+      await this.cloudinaryService.deleteImage(
+        product.imagePublicId,
+      );
     }
 
     return {
       message: 'Produto removido com sucesso',
     };
   }
-
 
   async findAvailableById(productId: string) {
     const product = await this.prisma.product.findFirst({

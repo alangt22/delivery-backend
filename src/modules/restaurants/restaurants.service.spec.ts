@@ -26,6 +26,18 @@ describe('RestaurantsService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
+
+      order: {
+        count: jest.fn(),
+      },
+
+      cart: {
+        count: jest.fn(),
+      },
+
+      category: {
+        count: jest.fn(),
+      },
     };
 
     cloudinaryServiceMock = {
@@ -530,6 +542,10 @@ describe('RestaurantsService', () => {
 
     prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
 
+    prismaMock.order.count.mockResolvedValue(0);
+    prismaMock.cart.count.mockResolvedValue(0);
+    prismaMock.category.count.mockResolvedValue(0);
+
     prismaMock.restaurant.delete.mockResolvedValue(restaurant);
 
     const result = await service.remove(
@@ -568,6 +584,10 @@ describe('RestaurantsService', () => {
     };
 
     prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
+
+    prismaMock.order.count.mockResolvedValue(0);
+    prismaMock.cart.count.mockResolvedValue(0);
+    prismaMock.category.count.mockResolvedValue(0);
 
     prismaMock.restaurant.delete.mockResolvedValue(restaurant);
 
@@ -611,6 +631,10 @@ describe('RestaurantsService', () => {
 
     prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
 
+    prismaMock.order.count.mockResolvedValue(0);
+    prismaMock.cart.count.mockResolvedValue(0);
+    prismaMock.category.count.mockResolvedValue(0);
+
     prismaMock.restaurant.delete.mockResolvedValue(restaurant);
 
     const result = await service.remove(
@@ -629,6 +653,66 @@ describe('RestaurantsService', () => {
     expect(result).toEqual({
       message: 'Restaurante removido com sucesso',
     });
+  });
+
+  it('deve impedir remoção quando existem pedidos associados', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      ownerId,
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
+
+    prismaMock.order.count.mockResolvedValue(1);
+    prismaMock.cart.count.mockResolvedValue(0);
+    prismaMock.category.count.mockResolvedValue(0);
+
+    await expect(
+      service.remove(restaurantId, ownerId),
+    ).rejects.toThrow('Não é possível remover o restaurante');
+
+    expect(prismaMock.restaurant.delete).not.toHaveBeenCalled();
+  });
+
+  it('deve impedir remoção quando existem carrinhos associados', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      ownerId,
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
+
+    prismaMock.order.count.mockResolvedValue(0);
+    prismaMock.cart.count.mockResolvedValue(1);
+    prismaMock.category.count.mockResolvedValue(0);
+
+    await expect(
+      service.remove(restaurantId, ownerId),
+    ).rejects.toThrow('Não é possível remover o restaurante');
+
+    expect(prismaMock.restaurant.delete).not.toHaveBeenCalled();
+  });
+
+  it('deve impedir remoção quando existem categorias associadas', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      ownerId,
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
+
+    prismaMock.order.count.mockResolvedValue(0);
+    prismaMock.cart.count.mockResolvedValue(0);
+    prismaMock.category.count.mockResolvedValue(1);
+
+    await expect(
+      service.remove(restaurantId, ownerId),
+    ).rejects.toThrow('Não é possível remover o restaurante');
+
+    expect(prismaMock.restaurant.delete).not.toHaveBeenCalled();
   });
 
   it('deve impedir remoção de restaurante inexistente', async () => {

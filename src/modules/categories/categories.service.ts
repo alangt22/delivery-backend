@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 
 import { PrismaService } from 'src/prisma/prisma.service';
 import { RestaurantsService } from '../restaurants/restaurants.service';
@@ -10,7 +10,7 @@ export class CategoriesService {
   constructor(
     private prisma: PrismaService,
     private restaurantsService: RestaurantsService,
-  ) {}
+  ) { }
 
   async create(dto: CreateCategoryDto, restaurantId: string, ownerId: string) {
     await this.restaurantsService.findById(restaurantId, ownerId);
@@ -108,9 +108,29 @@ export class CategoriesService {
       data: dto,
     });
   }
-  
-  async remove(categoryId: string, restaurantId: string, ownerId: string) {
-    await this.findById(categoryId, restaurantId, ownerId);
+
+  async remove(
+    categoryId: string,
+    restaurantId: string,
+    ownerId: string,
+  ) {
+    await this.findById(
+      categoryId,
+      restaurantId,
+      ownerId,
+    );
+
+    const productCount = await this.prisma.product.count({
+      where: {
+        categoryId,
+      },
+    });
+
+    if (productCount > 0) {
+      throw new ConflictException(
+        'Não é possível excluir a categoria porque existem produtos associados a ela.',
+      );
+    }
 
     await this.prisma.category.delete({
       where: {

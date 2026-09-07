@@ -28,6 +28,12 @@ describe('ProductsService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
+      orderItem: {
+        count: jest.fn(),
+      },
+      cartItem: {
+        count: jest.fn(),
+      },
     };
 
     categoriesServiceMock = {
@@ -409,6 +415,8 @@ describe('ProductsService', () => {
     prismaMock.product.delete.mockResolvedValue({
       id: 'product-1',
     });
+    prismaMock.orderItem.count.mockResolvedValue(0);
+    prismaMock.cartItem.count.mockResolvedValue(0);
 
     const result = await service.remove(
       'product-1',
@@ -446,6 +454,9 @@ describe('ProductsService', () => {
     prismaMock.product.delete.mockResolvedValue({
       id: 'product-1',
     });
+
+    prismaMock.orderItem.count.mockResolvedValue(0);
+    prismaMock.cartItem.count.mockResolvedValue(0);
 
     const result = await service.remove(
       'product-1',
@@ -487,6 +498,9 @@ describe('ProductsService', () => {
     prismaMock.product.delete.mockResolvedValue({
       id: 'product-1',
     });
+
+    prismaMock.orderItem.count.mockResolvedValue(0);
+    prismaMock.cartItem.count.mockResolvedValue(0);
 
     const result = await service.remove(
       'product-1',

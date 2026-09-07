@@ -25,6 +25,9 @@ describe('CategoriesService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
+      product: {
+        count: jest.fn(),
+      },
     };
 
     restaurantsServiceMock = {
@@ -269,6 +272,8 @@ describe('CategoriesService', () => {
       restaurantId,
     });
 
+    prismaMock.product.count.mockResolvedValue(0);
+
     prismaMock.category.delete.mockResolvedValue({
       id: categoryId,
     });
@@ -278,6 +283,12 @@ describe('CategoriesService', () => {
       restaurantId,
       ownerId,
     );
+
+    expect(prismaMock.product.count).toHaveBeenCalledWith({
+      where: {
+        categoryId,
+      },
+    });
 
     expect(prismaMock.category.delete).toHaveBeenCalledWith({
       where: {
