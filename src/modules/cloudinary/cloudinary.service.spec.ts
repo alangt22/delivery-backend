@@ -69,7 +69,14 @@ describe('CloudinaryService', () => {
     );
 
     const file = {
-      buffer: Buffer.from('fake-image'),
+      buffer: Buffer.from([
+        0xff, 0xd8, 0xff, 0xe0,
+        0x00, 0x10,
+        0x4a, 0x46, 0x49, 0x46,
+        0x00, 0x01,
+        0x01, 0x00, 0x00, 0x01,
+        0x00, 0x01, 0x00, 0x00,
+      ]),
       originalname: 'produto.jpg',
       mimetype: 'image/jpeg',
     } as Express.Multer.File;
@@ -106,7 +113,11 @@ describe('CloudinaryService', () => {
     );
 
     const file = {
-      buffer: Buffer.from('fake-image'),
+      buffer: Buffer.from([
+        0xff, 0xd8, 0xff, 0xe0,
+        0x00, 0x10,
+        0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+      ]),
       originalname: 'produto.jpg',
       mimetype: 'image/jpeg',
     } as Express.Multer.File;
