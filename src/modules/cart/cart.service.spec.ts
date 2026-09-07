@@ -80,6 +80,7 @@ describe('CartService', () => {
       cart: {
         findUnique: jest.fn(),
         create: jest.fn(),
+        delete: jest.fn(),
       },
       cartItem: {
         findUnique: jest.fn(),
@@ -88,6 +89,7 @@ describe('CartService', () => {
         update: jest.fn(),
         delete: jest.fn(),
         deleteMany: jest.fn(),
+        count: jest.fn(),
       },
       product: {
         findMany: jest.fn(),
@@ -925,6 +927,8 @@ describe('CartService', () => {
       unitPrice: decimal(25),
     });
 
+    prismaMock.cartItem.count.mockResolvedValue(1);
+
     const result = await service.removeCartItem(userId, 'cart-item-1');
 
     expect(prismaMock.cartItem.findFirst).toHaveBeenCalledWith({
@@ -944,6 +948,147 @@ describe('CartService', () => {
       id: 'cart-1',
       restaurantId: 'restaurant-1',
       totalAmount: 75,
+    });
+  });
+
+  it('deve excluir o carrinho quando o último item for removido', async () => {
+    prismaMock.cart.findUnique
+      .mockResolvedValueOnce({
+        id: 'cart-1',
+        userId,
+        restaurantId: 'restaurant-1',
+      })
+      .mockResolvedValueOnce({
+        id: 'cart-1',
+        userId,
+        restaurantId: 'restaurant-1',
+        items: [],
+      });
+
+    prismaMock.cartItem.findFirst.mockResolvedValue({
+      id: 'cart-item-1',
+      cartId: 'cart-1',
+      productId: 'product-1',
+      quantity: 1,
+      unitPrice: decimal(25),
+    });
+
+    prismaMock.cartItem.delete.mockResolvedValue({
+      id: 'cart-item-1',
+      cartId: 'cart-1',
+      productId: 'product-1',
+      quantity: 1,
+      unitPrice: decimal(25),
+    });
+
+    prismaMock.cartItem.count = jest.fn().mockResolvedValue(0);
+    prismaMock.cart.delete = jest.fn().mockResolvedValue({
+      id: 'cart-1',
+    });
+
+    const result = await service.removeCartItem(
+      userId,
+      'cart-item-1',
+    );
+
+    expect(prismaMock.cartItem.delete).toHaveBeenCalledWith({
+      where: {
+        id: 'cart-item-1',
+      },
+    });
+
+    expect(prismaMock.cartItem.count).toHaveBeenCalledWith({
+      where: {
+        cartId: 'cart-1',
+      },
+    });
+
+    expect(prismaMock.cart.delete).toHaveBeenCalledWith({
+      where: {
+        id: 'cart-1',
+      },
+    });
+
+    expect(result).toEqual({
+      items: [],
+      totalAmount: 0,
+    });
+  });
+
+  it('deve permitir adicionar produto de outro restaurante após o carrinho ficar vazio', async () => {
+    const product = createProduct({
+      id: 'product-2',
+      name: 'Hambúrguer',
+      price: decimal(30),
+      category: {
+        restaurantId: 'restaurant-2',
+      },
+    });
+
+    prismaMock.cart.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'cart-2',
+        userId,
+        restaurantId: 'restaurant-2',
+        items: [
+          {
+            productId: 'product-2',
+            quantity: 1,
+            unitPrice: decimal(30),
+            product: {
+              id: 'product-2',
+              name: 'Hambúrguer',
+              price: decimal(30),
+            },
+          },
+        ],
+      });
+
+    productsServiceMock.findAvailableById.mockResolvedValue(product);
+
+    prismaMock.cart.create.mockResolvedValue({
+      id: 'cart-2',
+      userId,
+      restaurantId: 'restaurant-2',
+    });
+
+    prismaMock.cartItem.findUnique.mockResolvedValue(null);
+
+    prismaMock.cartItem.create.mockResolvedValue({
+      id: 'cart-item-2',
+      cartId: 'cart-2',
+      productId: 'product-2',
+      quantity: 1,
+      unitPrice: decimal(30),
+    });
+
+    const result = await service.addProduct(
+      userId,
+      'product-2',
+      1,
+    );
+
+    expect(prismaMock.cart.create).toHaveBeenCalledWith({
+      data: {
+        userId,
+        restaurantId: 'restaurant-2',
+      },
+    });
+
+    expect(prismaMock.cartItem.create).toHaveBeenCalledWith({
+      data: {
+        cartId: 'cart-2',
+        productId: 'product-2',
+        quantity: 1,
+        unitPrice: decimal(30),
+      },
+    });
+
+    expect(result).toMatchObject({
+      id: 'cart-2',
+      restaurantId: 'restaurant-2',
+      totalAmount: 30,
     });
   });
 

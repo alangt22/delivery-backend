@@ -218,6 +218,25 @@ export class CartService {
       },
     });
 
+    const remainingItems = await this.prisma.cartItem.count({
+      where: {
+        cartId: cart.id,
+      },
+    });
+
+    if (remainingItems === 0) {
+      await this.prisma.cart.delete({
+        where: {
+          id: cart.id,
+        },
+      });
+
+      return {
+        items: [],
+        totalAmount: 0,
+      };
+    }
+
     return this.findCartDetails(cart.id);
   }
 
