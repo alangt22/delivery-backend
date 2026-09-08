@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -129,8 +130,10 @@ export class OrdersService {
     ownerId: string,
     dto: UpdateOrderStatusDto,
   ) {
-    //validar  restaurante pertence ao dono usando etod do restaurant service
-    await this.restaurantService.findById(restaurantId, ownerId);
+    await this.restaurantService.findById(
+      restaurantId,
+      ownerId,
+    );
 
     const order = await this.prisma.order.findFirst({
       where: {
@@ -143,18 +146,37 @@ export class OrdersService {
       throw new NotFoundException('Pedido nao encontrado');
     }
 
-    this.validateStatusTransition(order.status, dto.status);
+    this.validateStatusTransition(
+      order.status,
+      dto.status,
+    );
 
-    if (dto.status === OrderStatus.CANCELLED) {
-      await this.paymentsService.cancelPaymentForOrder(orderId);
-    }
-
-    return this.prisma.order.update({
+    const result = await this.prisma.order.updateMany({
       where: {
         id: orderId,
+        restaurantId,
+        status: order.status,
       },
       data: {
         status: dto.status,
+      },
+    });
+
+    if (result.count === 0) {
+      throw new ConflictException(
+        'O status do pedido foi alterado por outra requisição.',
+      );
+    }
+
+    if (dto.status === OrderStatus.CANCELLED) {
+      await this.paymentsService.cancelPaymentForOrder(
+        orderId,
+      );
+    }
+
+    return this.prisma.order.findUnique({
+      where: {
+        id: orderId,
       },
     });
   }

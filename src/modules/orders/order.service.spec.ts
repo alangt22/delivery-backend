@@ -6,6 +6,7 @@ import { OrderStatus } from '@prisma/client';
 import { BadRequestException } from '@nestjs/common/exceptions/bad-request.exception';
 import { NotFoundException } from '@nestjs/common/exceptions/not-found.exception';
 import { PaymentsService } from '../payments/payments.service';
+import { ConflictException } from '@nestjs/common/exceptions/conflict.exception';
 
 describe('OrdersService', () => {
   let service: OrdersService;
@@ -15,21 +16,21 @@ describe('OrdersService', () => {
   const paymentsServiceMock = {
     cancelPaymentForOrder: jest.fn(),
   };
-  
+
   beforeEach(async () => {
     prismaMock = {
       order: {
         findFirst: jest.fn(),
         findMany: jest.fn(),
+        findUnique: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
       },
     };
 
     restaurantServiceMock = {
       findById: jest.fn(),
     };
-
-
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -90,6 +91,7 @@ describe('OrdersService', () => {
     );
 
     expect(prismaMock.order.update).not.toHaveBeenCalled();
+    expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
   });
 
   it('deve atualizar um pedido de PENDING para CANCELLED', async () => {
@@ -97,12 +99,18 @@ describe('OrdersService', () => {
       id: 'restaurant-1',
       ownerId: 'owner-1',
     });
+
     prismaMock.order.findFirst.mockResolvedValue({
       id: 'order-1',
       restaurantId: 'restaurant-1',
       status: OrderStatus.PENDING,
     });
-    prismaMock.order.update.mockResolvedValue({
+
+    prismaMock.order.updateMany.mockResolvedValue({
+      count: 1,
+    });
+
+    prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
       restaurantId: 'restaurant-1',
       status: OrderStatus.CANCELLED,
@@ -115,9 +123,11 @@ describe('OrdersService', () => {
       { status: OrderStatus.CANCELLED },
     );
 
-    expect(result.id).toBe('order-1');
-    expect(result.restaurantId).toBe('restaurant-1');
-    expect(result.status).toBe(OrderStatus.CANCELLED);
+    expect(result).not.toBeNull();
+
+    expect(result!.id).toBe('order-1');
+    expect(result!.restaurantId).toBe('restaurant-1');
+    expect(result!.status).toBe(OrderStatus.CANCELLED);
 
     expect(restaurantServiceMock.findById).toHaveBeenCalledWith(
       'restaurant-1',
@@ -131,12 +141,20 @@ describe('OrdersService', () => {
       },
     });
 
-    expect(prismaMock.order.update).toHaveBeenCalledWith({
+    expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
       where: {
         id: 'order-1',
+        restaurantId: 'restaurant-1',
+        status: OrderStatus.PENDING,
       },
       data: {
         status: OrderStatus.CANCELLED,
+      },
+    });
+
+    expect(prismaMock.order.findUnique).toHaveBeenCalledWith({
+      where: {
+        id: 'order-1',
       },
     });
   });
@@ -153,7 +171,11 @@ describe('OrdersService', () => {
       status: OrderStatus.CONFIRMED,
     });
 
-    prismaMock.order.update.mockResolvedValue({
+    prismaMock.order.updateMany.mockResolvedValue({
+      count: 1,
+    });
+
+    prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
       restaurantId: 'restaurant-1',
       status: OrderStatus.PREPARING,
@@ -166,9 +188,11 @@ describe('OrdersService', () => {
       { status: OrderStatus.PREPARING },
     );
 
-    expect(result.id).toBe('order-1');
-    expect(result.restaurantId).toBe('restaurant-1');
-    expect(result.status).toBe(OrderStatus.PREPARING);
+    expect(result).not.toBeNull();
+
+    expect(result!.id).toBe('order-1');
+    expect(result!.restaurantId).toBe('restaurant-1');
+    expect(result!.status).toBe(OrderStatus.PREPARING);
 
     expect(restaurantServiceMock.findById).toHaveBeenCalledWith(
       'restaurant-1',
@@ -182,9 +206,11 @@ describe('OrdersService', () => {
       },
     });
 
-    expect(prismaMock.order.update).toHaveBeenCalledWith({
+    expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
       where: {
         id: 'order-1',
+        restaurantId: 'restaurant-1',
+        status: OrderStatus.CONFIRMED,
       },
       data: {
         status: OrderStatus.PREPARING,
@@ -204,7 +230,11 @@ describe('OrdersService', () => {
       status: OrderStatus.CONFIRMED,
     });
 
-    prismaMock.order.update.mockResolvedValue({
+    prismaMock.order.updateMany.mockResolvedValue({
+      count: 1,
+    });
+
+    prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
       restaurantId: 'restaurant-1',
       status: OrderStatus.CANCELLED,
@@ -217,9 +247,11 @@ describe('OrdersService', () => {
       { status: OrderStatus.CANCELLED },
     );
 
-    expect(result.id).toBe('order-1');
-    expect(result.restaurantId).toBe('restaurant-1');
-    expect(result.status).toBe(OrderStatus.CANCELLED);
+    expect(result).not.toBeNull();
+
+    expect(result!.id).toBe('order-1');
+    expect(result!.restaurantId).toBe('restaurant-1');
+    expect(result!.status).toBe(OrderStatus.CANCELLED);
 
     expect(restaurantServiceMock.findById).toHaveBeenCalledWith(
       'restaurant-1',
@@ -233,9 +265,11 @@ describe('OrdersService', () => {
       },
     });
 
-    expect(prismaMock.order.update).toHaveBeenCalledWith({
+    expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
       where: {
         id: 'order-1',
+        restaurantId: 'restaurant-1',
+        status: OrderStatus.CONFIRMED,
       },
       data: {
         status: OrderStatus.CANCELLED,
@@ -255,7 +289,11 @@ describe('OrdersService', () => {
       status: OrderStatus.PREPARING,
     });
 
-    prismaMock.order.update.mockResolvedValue({
+    prismaMock.order.updateMany.mockResolvedValue({
+      count: 1,
+    });
+
+    prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
       restaurantId: 'restaurant-1',
       status: OrderStatus.OUT_FOR_DELIVERY,
@@ -268,9 +306,11 @@ describe('OrdersService', () => {
       { status: OrderStatus.OUT_FOR_DELIVERY },
     );
 
-    expect(result.id).toBe('order-1');
-    expect(result.restaurantId).toBe('restaurant-1');
-    expect(result.status).toBe(OrderStatus.OUT_FOR_DELIVERY);
+    expect(result).not.toBeNull();
+
+    expect(result!.id).toBe('order-1');
+    expect(result!.restaurantId).toBe('restaurant-1');
+    expect(result!.status).toBe(OrderStatus.OUT_FOR_DELIVERY);
 
     expect(restaurantServiceMock.findById).toHaveBeenCalledWith(
       'restaurant-1',
@@ -284,9 +324,11 @@ describe('OrdersService', () => {
       },
     });
 
-    expect(prismaMock.order.update).toHaveBeenCalledWith({
+    expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
       where: {
         id: 'order-1',
+        restaurantId: 'restaurant-1',
+        status: OrderStatus.PREPARING,
       },
       data: {
         status: OrderStatus.OUT_FOR_DELIVERY,
@@ -306,7 +348,11 @@ describe('OrdersService', () => {
       status: OrderStatus.OUT_FOR_DELIVERY,
     });
 
-    prismaMock.order.update.mockResolvedValue({
+    prismaMock.order.updateMany.mockResolvedValue({
+      count: 1,
+    });
+
+    prismaMock.order.findUnique.mockResolvedValue({
       id: 'order-1',
       restaurantId: 'restaurant-1',
       status: OrderStatus.DELIVERED,
@@ -319,9 +365,11 @@ describe('OrdersService', () => {
       { status: OrderStatus.DELIVERED },
     );
 
-    expect(result.id).toBe('order-1');
-    expect(result.restaurantId).toBe('restaurant-1');
-    expect(result.status).toBe(OrderStatus.DELIVERED);
+    expect(result).not.toBeNull();
+
+    expect(result!.id).toBe('order-1');
+    expect(result!.restaurantId).toBe('restaurant-1');
+    expect(result!.status).toBe(OrderStatus.DELIVERED);
 
     expect(restaurantServiceMock.findById).toHaveBeenCalledWith(
       'restaurant-1',
@@ -335,9 +383,11 @@ describe('OrdersService', () => {
       },
     });
 
-    expect(prismaMock.order.update).toHaveBeenCalledWith({
+    expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
       where: {
         id: 'order-1',
+        restaurantId: 'restaurant-1',
+        status: OrderStatus.OUT_FOR_DELIVERY,
       },
       data: {
         status: OrderStatus.DELIVERED,
@@ -345,22 +395,92 @@ describe('OrdersService', () => {
     });
   });
 
+  it('deve impedir atualização concorrente do mesmo pedido', async () => {
+    restaurantServiceMock.findById.mockResolvedValue({
+      id: 'restaurant-1',
+      ownerId: 'owner-1',
+    });
+
+    prismaMock.order.findFirst.mockResolvedValue({
+      id: 'order-1',
+      restaurantId: 'restaurant-1',
+      status: OrderStatus.PENDING,
+    });
+
+    prismaMock.order.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+
+    prismaMock.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      restaurantId: 'restaurant-1',
+      status: OrderStatus.CANCELLED,
+    });
+
+    const results = await Promise.allSettled([
+      service.updateStatus(
+        'restaurant-1',
+        'order-1',
+        'owner-1',
+        {
+          status: OrderStatus.CANCELLED,
+        },
+      ),
+      service.updateStatus(
+        'restaurant-1',
+        'order-1',
+        'owner-1',
+        {
+          status: OrderStatus.CANCELLED,
+        },
+      ),
+    ]);
+
+    const fulfilled = results.filter(
+      (result) => result.status === 'fulfilled',
+    );
+
+    const rejected = results.filter(
+      (result) => result.status === 'rejected',
+    );
+
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+
+    expect(
+      rejected[0].status === 'rejected'
+        ? rejected[0].reason
+        : null,
+    ).toBeInstanceOf(ConflictException);
+
+    expect(prismaMock.order.updateMany).toHaveBeenCalledTimes(2);
+  });
+
   it('deve cancelar o pagamento quando o pedido for cancelado', async () => {
     const orderId = 'order-1';
     const restaurantId = 'restaurant-1';
     const ownerId = 'owner-1';
 
+    restaurantServiceMock.findById.mockResolvedValue({
+      id: restaurantId,
+      ownerId,
+    });
+
     prismaMock.order.findFirst.mockResolvedValue({
       id: orderId,
       restaurantId,
       status: OrderStatus.PENDING,
-    } as any);
+    });
 
-    prismaMock.order.update.mockResolvedValue({
+    prismaMock.order.updateMany.mockResolvedValue({
+      count: 1,
+    });
+
+    prismaMock.order.findUnique.mockResolvedValue({
       id: orderId,
       restaurantId,
       status: OrderStatus.CANCELLED,
-    } as any);
+    });
 
     await service.updateStatus(
       restaurantId,
@@ -381,6 +501,7 @@ describe('OrdersService', () => {
       id: 'restaurant-1',
       ownerId: 'owner-1',
     });
+
     prismaMock.order.findFirst.mockResolvedValue({
       id: 'order-1',
       restaurantId: 'restaurant-1',
@@ -393,7 +514,7 @@ describe('OrdersService', () => {
       }),
     ).rejects.toThrow(BadRequestException);
 
-    expect(prismaMock.order.update).not.toHaveBeenCalled();
+    expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
   });
 
   it('deve lançar um erro bad request quando a transição de status CONFIRMED para DELIVERED', async () => {
@@ -401,6 +522,7 @@ describe('OrdersService', () => {
       id: 'restaurant-1',
       ownerId: 'owner-1',
     });
+
     prismaMock.order.findFirst.mockResolvedValue({
       id: 'order-1',
       restaurantId: 'restaurant-1',
@@ -413,7 +535,7 @@ describe('OrdersService', () => {
       }),
     ).rejects.toThrow(BadRequestException);
 
-    expect(prismaMock.order.update).not.toHaveBeenCalled();
+    expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
   });
 
   it('deve lançar um erro bad request quando a transição de status PREPARING para DELIVERED', async () => {
@@ -421,6 +543,7 @@ describe('OrdersService', () => {
       id: 'restaurant-1',
       ownerId: 'owner-1',
     });
+
     prismaMock.order.findFirst.mockResolvedValue({
       id: 'order-1',
       restaurantId: 'restaurant-1',
@@ -433,7 +556,7 @@ describe('OrdersService', () => {
       }),
     ).rejects.toThrow(BadRequestException);
 
-    expect(prismaMock.order.update).not.toHaveBeenCalled();
+    expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
   });
 
   it('deve lançar um erro bad request quando a transição de status DELIVERED para qualquer outra', async () => {
@@ -441,6 +564,7 @@ describe('OrdersService', () => {
       id: 'restaurant-1',
       ownerId: 'owner-1',
     });
+
     prismaMock.order.findFirst.mockResolvedValue({
       id: 'order-1',
       restaurantId: 'restaurant-1',
@@ -453,7 +577,7 @@ describe('OrdersService', () => {
       }),
     ).rejects.toThrow(BadRequestException);
 
-    expect(prismaMock.order.update).not.toHaveBeenCalled();
+    expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
   });
 
   it('deve lançar um erro bad request quando a transição de status CANCELLED para qualquer outra', async () => {
@@ -461,6 +585,7 @@ describe('OrdersService', () => {
       id: 'restaurant-1',
       ownerId: 'owner-1',
     });
+
     prismaMock.order.findFirst.mockResolvedValue({
       id: 'order-1',
       restaurantId: 'restaurant-1',
@@ -473,14 +598,15 @@ describe('OrdersService', () => {
       }),
     ).rejects.toThrow(BadRequestException);
 
-    expect(prismaMock.order.update).not.toHaveBeenCalled();
+    expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
   });
 
-  it('deve lançar um erro NotFoundException  quando o pedido não for encontrado', async () => {
+  it('deve lançar um erro NotFoundException quando o pedido não for encontrado', async () => {
     restaurantServiceMock.findById.mockResolvedValue({
       id: 'restaurant-1',
       ownerId: 'owner-1',
     });
+
     prismaMock.order.findFirst.mockResolvedValue(null);
 
     await expect(
@@ -489,7 +615,7 @@ describe('OrdersService', () => {
       }),
     ).rejects.toThrow(NotFoundException);
 
-    expect(prismaMock.order.update).not.toHaveBeenCalled();
+    expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
 
     expect(restaurantServiceMock.findById).toHaveBeenCalledWith(
       'restaurant-1',
@@ -505,7 +631,9 @@ describe('OrdersService', () => {
   });
 
   it('deve propagar a NotFoundException quando o restaurante não for encontrado', async () => {
-    restaurantServiceMock.findById.mockRejectedValue(new NotFoundException());
+    restaurantServiceMock.findById.mockRejectedValue(
+      new NotFoundException(),
+    );
 
     await expect(
       service.updateStatus('restaurant-1', 'order-1', 'owner-1', {
@@ -514,8 +642,7 @@ describe('OrdersService', () => {
     ).rejects.toThrow(NotFoundException);
 
     expect(prismaMock.order.findFirst).not.toHaveBeenCalled();
-
-    expect(prismaMock.order.update).not.toHaveBeenCalled();
+    expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
 
     expect(restaurantServiceMock.findById).toHaveBeenCalledWith(
       'restaurant-1',
