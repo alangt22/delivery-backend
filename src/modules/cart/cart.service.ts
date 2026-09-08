@@ -5,6 +5,7 @@ import { AddressesService } from '../addresses/address.service';
 import { Cart, OrderStatus, Prisma } from '@prisma/client';
 @Injectable()
 export class CartService {
+  private readonly MAX_CART_ITEM_QUANTITY = 99;
   constructor(
     private readonly prisma: PrismaService,
     private readonly productsService: ProductsService,
@@ -34,19 +35,45 @@ export class CartService {
       },
     });
 
-    if (!cart) {
-      return this.createCart(userId, restaurantId);
+    if (cart) {
+      if (cart.restaurantId !== restaurantId) {
+        throw new BadRequestException(
+          'Seu carrinho já possui produtos de outro restaurante.',
+        );
+      }
+
+      return cart;
     }
 
-    if (cart.restaurantId !== restaurantId) {
-      throw new BadRequestException(
-        'Seu carrinho já possui produtos de outro restaurante.',
-      );
-    }
+    try {
+      return await this.createCart(userId, restaurantId);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const existingCart = await this.prisma.cart.findUnique({
+          where: {
+            userId,
+          },
+        });
 
-    return cart;
+        if (!existingCart) {
+          throw error;
+        }
+
+        if (existingCart.restaurantId !== restaurantId) {
+          throw new BadRequestException(
+            'Seu carrinho já possui produtos de outro restaurante.',
+          );
+        }
+
+        return existingCart;
+      }
+
+      throw error;
+    }
   }
-
   private async findCartItem(cartId: string, productId: string) {
     return this.prisma.cartItem.findUnique({
       where: {
@@ -58,15 +85,43 @@ export class CartService {
     });
   }
 
-  private async createCartItem(cartId: string, productId: string, quantity: number, unitPrice: Prisma.Decimal) {
-    return this.prisma.cartItem.create({
-      data: {
-        cartId,
-        productId,
-        quantity,
-        unitPrice,
-      },
-    });
+  private async createCartItem(
+    cartId: string,
+    productId: string,
+    quantity: number,
+    unitPrice: Prisma.Decimal,
+  ) {
+    try {
+      return await this.prisma.cartItem.create({
+        data: {
+          cartId,
+          productId,
+          quantity,
+          unitPrice,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const existingCartItem = await this.findCartItem(
+          cartId,
+          productId,
+        );
+
+        if (!existingCartItem) {
+          throw error;
+        }
+
+        return this.incrementCartItemQuantity(
+          existingCartItem.id,
+          quantity,
+        );
+      }
+
+      throw error;
+    }
   }
 
   private async updateCartItemQuantity(cartItemId: string, newQuantity: number) {
@@ -76,6 +131,40 @@ export class CartService {
       },
       data: {
         quantity: newQuantity,
+      },
+    });
+  }
+
+  private async incrementCartItemQuantity(
+    cartItemId: string,
+    quantity: number,
+  ) {
+    const cartItem = await this.prisma.cartItem.findUnique({
+      where: {
+        id: cartItemId,
+      },
+    });
+
+    if (!cartItem) {
+      throw new NotFoundException('Item do carrinho não encontrado.');
+    }
+
+    const newQuantity = cartItem.quantity + quantity;
+
+    if (newQuantity > this.MAX_CART_ITEM_QUANTITY) {
+      throw new BadRequestException(
+        `A quantidade máxima por produto é ${this.MAX_CART_ITEM_QUANTITY}.`,
+      );
+    }
+
+    return this.prisma.cartItem.update({
+      where: {
+        id: cartItemId,
+      },
+      data: {
+        quantity: {
+          increment: quantity,
+        },
       },
     });
   }
@@ -138,6 +227,18 @@ export class CartService {
   }
 
   async addProduct(userId: string, productId: string, quantity: number) {
+    if (quantity <= 0) {
+      throw new BadRequestException(
+        'A quantidade deve ser maior que zero.',
+      );
+    }
+
+    if (quantity > this.MAX_CART_ITEM_QUANTITY) {
+      throw new BadRequestException(
+        `A quantidade máxima por produto é ${this.MAX_CART_ITEM_QUANTITY}.`,
+      );
+    }
+
     const product = await this.productsService.findAvailableById(productId);
 
     const cart = await this.findOrCreateCart(userId, product.category.restaurantId);
@@ -145,8 +246,10 @@ export class CartService {
     const cartItem = await this.findCartItem(cart.id, product.id);
 
     if (cartItem) {
-      const newQuantity = cartItem.quantity + quantity;
-      await this.updateCartItemQuantity(cartItem.id, newQuantity);
+      await this.incrementCartItemQuantity(
+        cartItem.id,
+        quantity,
+      );
     } else {
       await this.createCartItem(cart.id, product.id, quantity, product.price);
     }

@@ -669,7 +669,9 @@ describe('CartService', () => {
         id: 'cart-item-1',
       },
       data: {
-        quantity: 8,
+        quantity: {
+          increment: 3,
+        },
       },
     });
 
@@ -1090,6 +1092,239 @@ describe('CartService', () => {
       restaurantId: 'restaurant-2',
       totalAmount: 30,
     });
+  });
+
+  it('deve impedir adicionar mais de 99 unidades de um produto', async () => {
+    await expect(
+      service.addProduct(userId, 'product-1', 100),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(productsServiceMock.findAvailableById).not.toHaveBeenCalled();
+    expect(prismaMock.cart.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('deve impedir que a quantidade do item ultrapasse 99', async () => {
+    const existingCart = {
+      id: 'cart-1',
+      userId,
+      restaurantId: 'restaurant-1',
+    };
+
+    const product = createProduct({
+      price: decimal(30),
+      category: {
+        restaurantId: 'restaurant-1',
+      },
+    });
+
+    prismaMock.cart.findUnique.mockResolvedValue(existingCart);
+    productsServiceMock.findAvailableById.mockResolvedValue(product);
+
+    prismaMock.cartItem.findUnique.mockResolvedValue({
+      id: 'cart-item-1',
+      cartId: 'cart-1',
+      productId: 'product-1',
+      quantity: 98,
+      unitPrice: decimal(30),
+    });
+
+    await expect(
+      service.addProduct(userId, 'product-1', 5),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(prismaMock.cartItem.update).not.toHaveBeenCalled();
+    expect(prismaMock.cartItem.create).not.toHaveBeenCalled();
+  });
+
+  it('deve tratar duas adições simultâneas ao mesmo item sem ultrapassar 99', async () => {
+    const existingCart = {
+      id: 'cart-1',
+      userId,
+      restaurantId: 'restaurant-1',
+    };
+
+    const product = createProduct({
+      price: decimal(30),
+      category: {
+        restaurantId: 'restaurant-1',
+      },
+    });
+
+    prismaMock.cart.findUnique
+      .mockResolvedValue(existingCart)
+      .mockResolvedValue({
+        id: 'cart-1',
+        userId,
+        restaurantId: 'restaurant-1',
+        items: [
+          {
+            productId: 'product-1',
+            quantity: 99,
+            unitPrice: decimal(30),
+            product: {
+              id: 'product-1',
+              name: product.name,
+              price: decimal(30),
+            },
+          },
+        ],
+      });
+
+    productsServiceMock.findAvailableById.mockResolvedValue(product);
+
+    prismaMock.cartItem.findUnique.mockResolvedValue({
+      id: 'cart-item-1',
+      cartId: 'cart-1',
+      productId: 'product-1',
+      quantity: 98,
+      unitPrice: decimal(30),
+    });
+
+    prismaMock.cartItem.update
+      .mockResolvedValueOnce({
+        id: 'cart-item-1',
+        cartId: 'cart-1',
+        productId: 'product-1',
+        quantity: 99,
+        unitPrice: decimal(30),
+      })
+      .mockRejectedValueOnce(
+        new BadRequestException(
+          'A quantidade máxima por produto é 99.',
+        ),
+      );
+
+    const results = await Promise.allSettled([
+      service.addProduct(userId, 'product-1', 1),
+      service.addProduct(userId, 'product-1', 1),
+    ]);
+
+    const fulfilled = results.filter(
+      (result) => result.status === 'fulfilled',
+    );
+
+    const rejected = results.filter(
+      (result) => result.status === 'rejected',
+    );
+
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+
+    expect(
+      rejected[0].status === 'rejected'
+        ? rejected[0].reason
+        : null,
+    ).toBeInstanceOf(BadRequestException);
+
+    expect(prismaMock.cartItem.update).toHaveBeenCalledTimes(2);
+  });
+
+  it('deve recuperar o carrinho existente quando ocorrer P2002 ao criar', async () => {
+    const existingCart = {
+      id: 'cart-1',
+      userId,
+      restaurantId: 'restaurant-1',
+    };
+
+    prismaMock.cart.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(existingCart);
+
+    prismaMock.cart.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed on the fields: (`userId`)',
+        {
+          code: 'P2002',
+          clientVersion: 'test',
+        },
+      ),
+    );
+
+    const result = await service['findOrCreateCart'](
+      userId,
+      'restaurant-1',
+    );
+
+    expect(prismaMock.cart.create).toHaveBeenCalledWith({
+      data: {
+        userId,
+        restaurantId: 'restaurant-1',
+      },
+    });
+
+    expect(prismaMock.cart.findUnique).toHaveBeenCalledTimes(2);
+
+    expect(result).toEqual(existingCart);
+  });
+
+  it('deve impedir que a quantidade final ultrapasse 99 unidades', async () => {
+    const existingCart = {
+      id: 'cart-1',
+      userId,
+      restaurantId: 'restaurant-1',
+    };
+
+    const product = createProduct({
+      price: decimal(30),
+      category: {
+        restaurantId: 'restaurant-1',
+      },
+    });
+
+    prismaMock.cart.findUnique.mockResolvedValue(existingCart);
+    productsServiceMock.findAvailableById.mockResolvedValue(product);
+
+    prismaMock.cartItem.findUnique.mockResolvedValue({
+      id: 'cart-item-1',
+      cartId: 'cart-1',
+      productId: 'product-1',
+      quantity: 98,
+      unitPrice: decimal(30),
+    });
+
+    await expect(
+      service.addProduct(userId, 'product-1', 2),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(prismaMock.cartItem.update).not.toHaveBeenCalled();
+  });
+
+  it('deve rejeitar P2002 quando o carrinho recuperado for de outro restaurante', async () => {
+    const existingCart = {
+      id: 'cart-1',
+      userId,
+      restaurantId: 'restaurant-2',
+    };
+
+    prismaMock.cart.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(existingCart);
+
+    prismaMock.cart.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed on the fields: (`userId`)',
+        {
+          code: 'P2002',
+          clientVersion: 'test',
+        },
+      ),
+    );
+
+    await expect(
+      service['findOrCreateCart'](
+        userId,
+        'restaurant-1',
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(prismaMock.cart.create).toHaveBeenCalledWith({
+      data: {
+        userId,
+        restaurantId: 'restaurant-1',
+      },
+    });
+
+    expect(prismaMock.cart.findUnique).toHaveBeenCalledTimes(2);
   });
 
   it('deve lançar NotFoundException quando o item não pertencer ao carrinho do usuário', async () => {
