@@ -107,6 +107,13 @@ describe('AuthService', () => {
       service.login({ email: 'alan@example.com', password: 'password123' }),
     ).rejects.toThrow(UnauthorizedException);
 
+    await expect(
+      service.login({
+        email: 'alan@example.com',
+        password: 'password123',
+      }),
+    ).rejects.toThrow('Email ou senha inválidos');
+
     expect(bcrypt.compare).not.toHaveBeenCalled();
     expect(jwtServiceMock.signAsync).not.toHaveBeenCalled();
   });
@@ -139,8 +146,11 @@ describe('AuthService', () => {
     });
 
     await expect(
-      service.login({ email: 'alan@example.com', password: 'password123' }),
-    ).rejects.toThrow(ConflictException);
+      service.login({
+        email: 'alan@example.com',
+        password: 'password123',
+      }),
+    ).rejects.toThrow(UnauthorizedException);
 
     expect(bcrypt.compare).not.toHaveBeenCalled();
     expect(jwtServiceMock.signAsync).not.toHaveBeenCalled();
@@ -153,16 +163,21 @@ describe('AuthService', () => {
       passwordHash: 'hashed-password',
       role: 'CUSTOMER',
     });
+
     (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
     await expect(
-      service.login({ email: 'alan@example.com', password: 'wrong-password' }),
-    ).rejects.toThrow(ConflictException);
+      service.login({
+        email: 'alan@example.com',
+        password: 'wrong-password',
+      }),
+    ).rejects.toThrow(UnauthorizedException);
 
     expect(bcrypt.compare).toHaveBeenCalledWith(
       'wrong-password',
       'hashed-password',
     );
+
     expect(jwtServiceMock.signAsync).not.toHaveBeenCalled();
   });
 

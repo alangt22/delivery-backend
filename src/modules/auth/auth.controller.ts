@@ -20,6 +20,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -48,6 +50,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Login com e-mail e senha',
     description: 'Autentica o usuário e cria um cookie de autenticação.',

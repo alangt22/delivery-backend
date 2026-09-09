@@ -49,21 +49,22 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('Email ou senha inválidos');
     }
+
     if (user.isBlocked) {
-      throw new UnauthorizedException('Usuário bloqueado');
+      throw new UnauthorizedException('Email ou senha inválidos');
     }
 
     if (!user.passwordHash) {
-      throw new ConflictException('Esta conta utiliza login com Google');
+      throw new UnauthorizedException('Email ou senha inválidos');
     }
 
     const passwordMatch = await bcrypt.compare(
       dto.password,
-      user.passwordHash!,
+      user.passwordHash,
     );
 
     if (!passwordMatch) {
-      throw new ConflictException('Email ou senha inválidos');
+      throw new UnauthorizedException('Email ou senha inválidos');
     }
 
     const payload = {
