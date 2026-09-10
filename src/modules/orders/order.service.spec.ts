@@ -768,7 +768,19 @@ describe('OrdersService', () => {
     const orders = [
       {
         id: 'order-1',
+        customerId: 'customer-1',
         restaurantId: 'restaurant-1',
+        addressStreet: 'Rua A',
+        addressNumber: '100',
+        addressDistrict: 'Centro',
+        addressCity: 'São Paulo',
+        addressState: 'SP',
+        addressZipCode: '01000-000',
+        addressComplement: 'Apto 10',
+        totalAmount: 50,
+        status: OrderStatus.PENDING,
+        createdAt: new Date(),
+        updatedAt: new Date(),
         customer: {
           id: 'customer-1',
           name: 'Cliente 1',
@@ -776,7 +788,19 @@ describe('OrdersService', () => {
       },
       {
         id: 'order-2',
+        customerId: 'customer-2',
         restaurantId: 'restaurant-1',
+        addressStreet: 'Rua B',
+        addressNumber: '200',
+        addressDistrict: 'Bairro',
+        addressCity: 'São Paulo',
+        addressState: 'SP',
+        addressZipCode: '02000-000',
+        addressComplement: null,
+        totalAmount: 80,
+        status: OrderStatus.CONFIRMED,
+        createdAt: new Date(),
+        updatedAt: new Date(),
         customer: {
           id: 'customer-2',
           name: 'Cliente 2',
@@ -807,7 +831,21 @@ describe('OrdersService', () => {
       where: {
         restaurantId: 'restaurant-1',
       },
-      include: {
+      select: {
+        id: true,
+        customerId: true,
+        restaurantId: true,
+        addressStreet: true,
+        addressNumber: true,
+        addressDistrict: true,
+        addressCity: true,
+        addressState: true,
+        addressZipCode: true,
+        addressComplement: true,
+        totalAmount: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
         customer: {
           select: {
             id: true,

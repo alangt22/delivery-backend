@@ -56,6 +56,7 @@ export class OrdersService {
     return order;
   }
 
+  // Retorna os pedidos do restaurante com apenas os dados necessários para a operação e entrega.
   async findMyRestaurantOrders(restaurantId: string, ownerId: string) {
     //validar  restaurante pertence ao dono usando etod do restaurant service
     await this.restaurantService.findById(restaurantId, ownerId);
@@ -64,7 +65,21 @@ export class OrdersService {
       where: {
         restaurantId,
       },
-      include: {
+      select: {
+        id: true,
+        customerId: true,
+        restaurantId: true,
+        addressStreet: true,
+        addressNumber: true,
+        addressDistrict: true,
+        addressCity: true,
+        addressState: true,
+        addressZipCode: true,
+        addressComplement: true,
+        totalAmount: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
         customer: {
           select: {
             id: true,
