@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 @Injectable()
 export class RestaurantsService {
+  private readonly logger = new Logger(RestaurantsService.name);
   constructor(
     private prisma: PrismaService,
     private cloudinaryService: CloudinaryService
@@ -59,59 +60,100 @@ export class RestaurantsService {
 
     let logoUrl = restaurant.logo ?? undefined;
     let logoPublicId = restaurant.logoPublicId ?? undefined;
-
     let bannerUrl = restaurant.banner ?? undefined;
     let bannerPublicId = restaurant.bannerPublicId ?? undefined;
 
     let oldLogoPublicId: string | undefined;
     let oldBannerPublicId: string | undefined;
 
-    if (logo) {
-      const uploadedLogo = await this.cloudinaryService.uploadImage(
-        logo,
-        `restaurants/${id}/logo`,
+    const uploadedPublicIds: string[] = [];
+
+    try {
+      // Faz o upload da nova logo e guarda o ID para eventual compensação.
+      if (logo) {
+        const uploadedLogo = await this.cloudinaryService.uploadImage(
+          logo,
+          `restaurants/${id}/logo`,
+        );
+
+        uploadedPublicIds.push(uploadedLogo.publicId);
+
+        oldLogoPublicId = restaurant.logoPublicId ?? undefined;
+        logoUrl = uploadedLogo.url;
+        logoPublicId = uploadedLogo.publicId;
+      }
+
+      // Faz o upload do novo banner e guarda o ID para eventual compensação.
+      if (banner) {
+        const uploadedBanner = await this.cloudinaryService.uploadImage(
+          banner,
+          `restaurants/${id}/banner`,
+        );
+
+        uploadedPublicIds.push(uploadedBanner.publicId);
+
+        oldBannerPublicId = restaurant.bannerPublicId ?? undefined;
+        bannerUrl = uploadedBanner.url;
+        bannerPublicId = uploadedBanner.publicId;
+      }
+
+      const updatedRestaurant = await this.prisma.restaurant.update({
+        where: {
+          id,
+        },
+        data: {
+          ...dto,
+          logo: logoUrl,
+          logoPublicId,
+          banner: bannerUrl,
+          bannerPublicId,
+        },
+      });
+
+      // Remove a logo antiga sem invalidar uma atualização já salva no banco.
+      if (logo && oldLogoPublicId) {
+        try {
+          await this.cloudinaryService.deleteImage(oldLogoPublicId);
+        } catch (error) {
+          this.logger.error(
+            `Falha ao remover logo antiga do restaurante ${id}: ${oldLogoPublicId}`,
+            error instanceof Error ? error.stack : error,
+          );
+        }
+      }
+
+      // Remove o banner antigo sem invalidar uma atualização já salva no banco.
+      if (banner && oldBannerPublicId) {
+        try {
+          await this.cloudinaryService.deleteImage(oldBannerPublicId);
+        } catch (error) {
+          this.logger.error(
+            `Falha ao remover banner antigo do restaurante ${id}: ${oldBannerPublicId}`,
+            error instanceof Error ? error.stack : error,
+          );
+        }
+      }
+
+      return updatedRestaurant;
+    } catch (error) {
+      // Compensa uploads que ficaram órfãos porque o banco ou outro upload falhou.
+      await Promise.all(
+        uploadedPublicIds.map(async (publicId) => {
+          try {
+            await this.cloudinaryService.deleteImage(publicId);
+          } catch (cleanupError) {
+            this.logger.error(
+              `Falha ao compensar upload da imagem ${publicId} do restaurante ${id}`,
+              cleanupError instanceof Error
+                ? cleanupError.stack
+                : cleanupError,
+            );
+          }
+        }),
       );
 
-      oldLogoPublicId = restaurant.logoPublicId ?? undefined;
-
-      logoUrl = uploadedLogo.url;
-      logoPublicId = uploadedLogo.publicId;
+      throw error;
     }
-
-    if (banner) {
-      const uploadedBanner = await this.cloudinaryService.uploadImage(
-        banner,
-        `restaurants/${id}/banner`,
-      );
-
-      oldBannerPublicId = restaurant.bannerPublicId ?? undefined;
-
-      bannerUrl = uploadedBanner.url;
-      bannerPublicId = uploadedBanner.publicId;
-    }
-
-    const updatedRestaurant = await this.prisma.restaurant.update({
-      where: {
-        id,
-      },
-      data: {
-        ...dto,
-        logo: logoUrl,
-        logoPublicId,
-        banner: bannerUrl,
-        bannerPublicId,
-      },
-    });
-
-    if (logo && oldLogoPublicId) {
-      await this.cloudinaryService.deleteImage(oldLogoPublicId);
-    }
-
-    if (banner && oldBannerPublicId) {
-      await this.cloudinaryService.deleteImage(oldBannerPublicId);
-    }
-
-    return updatedRestaurant;
   }
 
   // Retorna apenas restaurantes aprovados para a vitrine pública.
@@ -320,16 +362,32 @@ export class RestaurantsService {
       },
     });
 
+    // Remove a logo do Cloudinary sem invalidar a remoção já feita no banco.
     if (restaurant.logoPublicId) {
-      await this.cloudinaryService.deleteImage(
-        restaurant.logoPublicId,
-      );
+      try {
+        await this.cloudinaryService.deleteImage(
+          restaurant.logoPublicId,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Falha ao remover logo do restaurante ${id}: ${restaurant.logoPublicId}`,
+          error instanceof Error ? error.stack : error,
+        );
+      }
     }
 
+    // Remove o banner do Cloudinary sem invalidar a remoção já feita no banco.
     if (restaurant.bannerPublicId) {
-      await this.cloudinaryService.deleteImage(
-        restaurant.bannerPublicId,
-      );
+      try {
+        await this.cloudinaryService.deleteImage(
+          restaurant.bannerPublicId,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Falha ao remover banner do restaurante ${id}: ${restaurant.bannerPublicId}`,
+          error instanceof Error ? error.stack : error,
+        );
+      }
     }
 
     return {

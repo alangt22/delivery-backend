@@ -514,6 +514,241 @@ describe('RestaurantsService', () => {
     expect(cloudinaryServiceMock.deleteImage).not.toHaveBeenCalled();
   });
 
+  it('deve remover a nova imagem do Cloudinary quando a atualização do banco falhar', async () => {
+    const dto = {
+      name: 'Alan Burger Atualizado',
+    };
+
+    const logo = {
+      buffer: Buffer.from('new-logo'),
+      originalname: 'logo.png',
+      mimetype: 'image/png',
+    } as Express.Multer.File;
+
+    const existingRestaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      description: 'Hambúrguer artesanal',
+      ownerId,
+      logo: 'old-logo.jpg',
+      logoPublicId: 'restaurants/restaurant-1/logo/old-logo',
+      banner: null,
+      bannerPublicId: null,
+    };
+
+    const uploadedLogo = {
+      url: 'new-logo.jpg',
+      publicId: 'restaurants/restaurant-1/logo/new-logo',
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(
+      existingRestaurant,
+    );
+
+    cloudinaryServiceMock.uploadImage.mockResolvedValue(
+      uploadedLogo,
+    );
+
+    prismaMock.restaurant.update.mockRejectedValue(
+      new Error('Erro no banco'),
+    );
+
+    await expect(
+      service.update(
+        restaurantId,
+        ownerId,
+        dto,
+        logo,
+      ),
+    ).rejects.toThrow('Erro no banco');
+
+    expect(
+      cloudinaryServiceMock.deleteImage,
+    ).toHaveBeenCalledWith(
+      uploadedLogo.publicId,
+    );
+  });
+
+  it('deve compensar a logo quando o upload do banner falhar', async () => {
+    const dto = {
+      name: 'Alan Burger Atualizado',
+    };
+
+    const logo = {
+      buffer: Buffer.from('new-logo'),
+      originalname: 'logo.png',
+      mimetype: 'image/png',
+    } as Express.Multer.File;
+
+    const banner = {
+      buffer: Buffer.from('new-banner'),
+      originalname: 'banner.jpg',
+      mimetype: 'image/jpeg',
+    } as Express.Multer.File;
+
+    const existingRestaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      description: 'Hambúrguer artesanal',
+      ownerId,
+      logo: 'old-logo.jpg',
+      logoPublicId: 'restaurants/restaurant-1/logo/old-logo',
+      banner: 'old-banner.jpg',
+      bannerPublicId: 'restaurants/restaurant-1/banner/old-banner',
+    };
+
+    const uploadedLogo = {
+      url: 'new-logo.jpg',
+      publicId: 'restaurants/restaurant-1/logo/new-logo',
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(
+      existingRestaurant,
+    );
+
+    cloudinaryServiceMock.uploadImage
+      .mockResolvedValueOnce(uploadedLogo)
+      .mockRejectedValueOnce(new Error('Erro no upload do banner'));
+
+    await expect(
+      service.update(
+        restaurantId,
+        ownerId,
+        dto,
+        logo,
+        banner,
+      ),
+    ).rejects.toThrow('Erro no upload do banner');
+
+    expect(
+      cloudinaryServiceMock.deleteImage,
+    ).toHaveBeenCalledWith(
+      uploadedLogo.publicId,
+    );
+
+    expect(prismaMock.restaurant.update).not.toHaveBeenCalled();
+  });
+
+  it('deve manter a atualização quando a remoção da logo antiga falhar', async () => {
+    const dto = {
+      name: 'Alan Burger Atualizado',
+    };
+
+    const logo = {
+      buffer: Buffer.from('new-logo'),
+      originalname: 'logo.png',
+      mimetype: 'image/png',
+    } as Express.Multer.File;
+
+    const existingRestaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      description: 'Hambúrguer artesanal',
+      ownerId,
+      logo: 'old-logo.jpg',
+      logoPublicId: 'restaurants/restaurant-1/logo/old-logo',
+      banner: null,
+      bannerPublicId: null,
+    };
+
+    const uploadedLogo = {
+      url: 'new-logo.jpg',
+      publicId: 'restaurants/restaurant-1/logo/new-logo',
+    };
+
+    const updatedRestaurant = {
+      ...existingRestaurant,
+      ...dto,
+      logo: uploadedLogo.url,
+      logoPublicId: uploadedLogo.publicId,
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(
+      existingRestaurant,
+    );
+
+    cloudinaryServiceMock.uploadImage.mockResolvedValue(
+      uploadedLogo,
+    );
+
+    prismaMock.restaurant.update.mockResolvedValue(
+      updatedRestaurant,
+    );
+
+    cloudinaryServiceMock.deleteImage.mockRejectedValue(
+      new Error('Erro ao remover imagem antiga'),
+    );
+
+    const result = await service.update(
+      restaurantId,
+      ownerId,
+      dto,
+      logo,
+    );
+
+    expect(result).toEqual(updatedRestaurant);
+
+    expect(
+      cloudinaryServiceMock.deleteImage,
+    ).toHaveBeenCalledWith(
+      existingRestaurant.logoPublicId,
+    );
+  });
+
+  it('deve manter a remoção do restaurante quando a exclusão das imagens falhar', async () => {
+    const restaurant = {
+      id: restaurantId,
+      name: 'Alan Burger',
+      description: 'Hambúrguer artesanal',
+      ownerId,
+      logo: 'logo.jpg',
+      logoPublicId: 'restaurants/restaurant-1/logo/logo',
+      banner: 'banner.jpg',
+      bannerPublicId: 'restaurants/restaurant-1/banner/banner',
+    };
+
+    prismaMock.restaurant.findFirst.mockResolvedValue(restaurant);
+
+    prismaMock.order.count.mockResolvedValue(0);
+    prismaMock.cart.count.mockResolvedValue(0);
+    prismaMock.category.count.mockResolvedValue(0);
+
+    prismaMock.restaurant.delete.mockResolvedValue(restaurant);
+
+    cloudinaryServiceMock.deleteImage
+      .mockRejectedValueOnce(new Error('Erro ao remover logo'))
+      .mockRejectedValueOnce(new Error('Erro ao remover banner'));
+
+    const result = await service.remove(
+      restaurantId,
+      ownerId,
+    );
+
+    expect(prismaMock.restaurant.delete).toHaveBeenCalledWith({
+      where: {
+        id: restaurantId,
+      },
+    });
+
+    expect(
+      cloudinaryServiceMock.deleteImage,
+    ).toHaveBeenNthCalledWith(
+      1,
+      restaurant.logoPublicId,
+    );
+
+    expect(
+      cloudinaryServiceMock.deleteImage,
+    ).toHaveBeenNthCalledWith(
+      2,
+      restaurant.bannerPublicId,
+    );
+
+    expect(result).toEqual({
+      message: 'Restaurante removido com sucesso',
+    });
+  });
+
   it('deve impedir atualização de restaurante inexistente', async () => {
     const dto = {
       name: 'Novo nome',
