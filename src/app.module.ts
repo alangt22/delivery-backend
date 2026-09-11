@@ -4,7 +4,6 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import * as Joi from 'joi';
 
 import { AuthModule } from './modules/auth/auth.module';
@@ -28,8 +27,8 @@ import { HealthModule } from './health/heath.module';
       validationSchema: Joi.object({
         DATABASE_URL: Joi.string().required(),
 
-        AUTH_SECRET: Joi.string().min(32).required(),
         JWT_SECRET: Joi.string().min(32).required(),
+        SESSION_SECRET: Joi.string().min(32).required(),
 
         GOOGLE_CLIENT_ID: Joi.string().required(),
         GOOGLE_CLIENT_SECRET: Joi.string().required(),
@@ -73,7 +72,6 @@ import { HealthModule } from './health/heath.module';
   controllers: [AppController],
 
   providers: [
-    AppService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

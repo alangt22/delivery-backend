@@ -1,12 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
-
+  // Verifica se a API está online.
   @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  getStatus() {
+    return {
+      message: 'Delivery API is running',
+    };
   }
 }
