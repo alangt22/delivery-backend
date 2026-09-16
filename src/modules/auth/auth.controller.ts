@@ -153,6 +153,8 @@ export class AuthController {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return res.redirect(process.env.FRONTEND_URL!);
+    return res.redirect(
+      `${process.env.FRONTEND_URL}/dashboard`,
+    );
   }
 }
