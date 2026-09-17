@@ -192,6 +192,7 @@ export class CartService {
       const priceChanged = !item.unitPrice.equals(item.product.price);
 
       return {
+        itemId: item.id,
         productId: item.productId,
         productName: item.product.name,
         quantity: item.quantity,
