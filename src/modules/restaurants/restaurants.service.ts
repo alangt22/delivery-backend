@@ -216,6 +216,14 @@ export class RestaurantsService {
     });
   }
 
+  async findAllAdmin() {
+    return this.prisma.restaurant.findMany({
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
   // Aprova um restaurante pendente para disponibilizá-lo na vitrine pública.
   async approve(id: string) {
     const restaurant = await this.prisma.restaurant.findFirst({

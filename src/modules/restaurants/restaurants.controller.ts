@@ -105,6 +105,18 @@ export class RestaurantsController {
     return this.restaurantsService.findPending();
   }
 
+  @Get('admin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Listar todos os restaurantes',
+    description:
+      'Retorna todos os restaurantes para gerenciamento administrativo.',
+  })
+  findAllAdmin() {
+    return this.restaurantsService.findAllAdmin();
+  }
+
   @Patch('admin/:id/approve')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
