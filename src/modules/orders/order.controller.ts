@@ -79,6 +79,46 @@ export class OrdersController {
     );
   }
 
+  @Get('restaurants/:restaurantId/orders/:orderId')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Buscar detalhes de um pedido do restaurante',
+    description:
+      'Retorna os detalhes de um pedido pertencente ao restaurante do usuário autenticado.',
+  })
+  @ApiParam({
+    name: 'restaurantId',
+    description: 'ID do restaurante',
+  })
+  @ApiParam({
+    name: 'orderId',
+    description: 'ID do pedido',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Detalhes do pedido retornados com sucesso.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Usuário não autenticado.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Restaurante ou pedido não encontrado.',
+  })
+  async findMyRestaurantOrderById(
+    @Param('restaurantId') restaurantId: string,
+    @Param('orderId') orderId: string,
+    @Req() req,
+  ) {
+    return this.ordersService.findMyRestaurantOrderById(
+      restaurantId,
+      orderId,
+      req.user.id,
+    );
+  }
+
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({

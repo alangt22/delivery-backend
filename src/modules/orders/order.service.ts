@@ -93,6 +93,45 @@ export class OrdersService {
     });
   }
 
+  async findMyRestaurantOrderById(
+    restaurantId: string,
+    orderId: string,
+    ownerId: string,
+  ) {
+    // Confirma que o restaurante pertence ao usuário autenticado.
+    await this.restaurantService.findById(restaurantId, ownerId);
+
+    // Confirma que o pedido pertence a esse restaurante.
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: orderId,
+        restaurantId,
+      },
+      include: {
+        items: true,
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+            logo: true,
+          },
+        },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Pedido não encontrado');
+    }
+
+    return order;
+  }
+
   private validateStatusTransition(
     currentStatus: OrderStatus,
     newStatus: OrderStatus,
