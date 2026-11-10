@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Profile, Strategy } from 'passport-google-oauth20';
 import { AuthService } from '../auth.service';
@@ -23,11 +23,20 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
 
   async validate(
     accessToken: string,
-
     refreshToken: string | undefined,
-
     profile: Profile,
   ) {
-    return this.authService.validateGoogleUser(profile);
+    try {
+      return await this.authService.validateGoogleUser(profile);
+    } catch (error) {
+      if (
+        error instanceof UnauthorizedException &&
+        error.message === 'Usuário bloqueado'
+      ) {
+        return { blocked: true };
+      }
+
+      throw error;
+    }
   }
 }

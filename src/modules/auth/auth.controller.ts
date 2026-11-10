@@ -144,6 +144,12 @@ export class AuthController {
     @Req() req,
     @Res() res: Response,
   ) {
+    if (req.user?.blocked) {
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/login?error=account_blocked`,
+      );
+    }
+
     const { access_token } = req.user;
 
     res.cookie('access_token', access_token, {

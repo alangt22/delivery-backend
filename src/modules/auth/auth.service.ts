@@ -51,7 +51,7 @@ export class AuthService {
     }
 
     if (user.isBlocked) {
-      throw new UnauthorizedException('Email ou senha inválidos');
+      throw new UnauthorizedException('Usuário bloqueado');
     }
 
     if (!user.passwordHash) {
